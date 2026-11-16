@@ -1,7 +1,8 @@
-import '../../pod_player.dart';
+import '../utils/enums.dart';
+import '../widgets/all_progress_bar.dart';
 
 class OverLayOptions {
-  final PodVideoState podVideoState;
+  final AllPlayerStatus playerStatus;
   final Duration videoDuration;
   final Duration videoPosition;
   final bool isFullScreen;
@@ -11,10 +12,11 @@ class OverLayOptions {
   final bool autoPlay;
   final String currentVideoPlaybackSpeed;
   final List<String> videoPlayBackSpeeds;
-  final PodVideoPlayerType videoPlayerType;
-  final PodProgressBar podProgresssBar;
+  final AllPlayerType videoPlayerType;
+  final AllProgressBar progressBar;
+
   OverLayOptions({
-    required this.podVideoState,
+    required this.playerStatus,
     required this.videoDuration,
     required this.videoPosition,
     required this.isFullScreen,
@@ -25,6 +27,6 @@ class OverLayOptions {
     required this.currentVideoPlaybackSpeed,
     required this.videoPlayBackSpeeds,
     required this.videoPlayerType,
-    required this.podProgresssBar,
+    required this.progressBar,
   });
 }

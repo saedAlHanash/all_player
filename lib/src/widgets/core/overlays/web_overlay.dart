@@ -1,22 +1,22 @@
-part of 'package:pod_player/src/pod_player.dart';
+part of 'package:all_player/src/all_player.dart';
 
 class _WebOverlay extends StatelessWidget {
-  final String tag;
+  final String? tag;
   const _WebOverlay({
-    required this.tag,
+    this.tag,
   });
 
   @override
   Widget build(BuildContext context) {
     const overlayColor = Colors.black38;
-    final podCtr = Get.find<PodGetXVideoController>(tag: tag);
+    final playerCtr = context.read<AllPlayerController>();
     return Stack(
       children: [
         Positioned.fill(
           child: _VideoGestureDetector(
             tag: tag,
-            onTap: podCtr.togglePlayPauseVideo,
-            onDoubleTap: () => podCtr.toggleFullScreenOnWeb(context, tag),
+            onTap: playerCtr.togglePlayPause,
+            onDoubleTap: () => playerCtr.toggleFullScreen(context),
             child: const ColoredBox(
               color: overlayColor,
               child: SizedBox.expand(),
@@ -25,72 +25,64 @@ class _WebOverlay extends StatelessWidget {
         ),
         Align(
           alignment: Alignment.bottomLeft,
-          child: _WebOverlayBottomControlles(
-            tag: tag,
-          ),
+          child: _WebOverlayBottomControllers(tag: tag),
         ),
         Positioned.fill(
-          child: GetBuilder<PodGetXVideoController>(
-            tag: tag,
-            id: 'double-tap',
-            builder: (podCtr) {
-              return Row(
-                children: [
-                  Expanded(
-                    child: IgnorePointer(
-                      child: DoubleTapIcon(
-                        onDoubleTap: () {},
-                        tag: tag,
-                        isForward: false,
-                        iconOnly: true,
-                      ),
-                    ),
+          child: Row(
+            children: [
+              Expanded(
+                child: IgnorePointer(
+                  child: DoubleTapIcon(
+                    onDoubleTap: () {},
+                    tag: tag,
+                    isForward: false,
+                    iconOnly: true,
                   ),
-                  Expanded(
-                    child: IgnorePointer(
-                      child: DoubleTapIcon(
-                        onDoubleTap: () {},
-                        tag: tag,
-                        isForward: true,
-                        iconOnly: true,
-                      ),
-                    ),
+                ),
+              ),
+              Expanded(
+                child: IgnorePointer(
+                  child: DoubleTapIcon(
+                    onDoubleTap: () {},
+                    tag: tag,
+                    isForward: true,
+                    iconOnly: true,
                   ),
-                ],
-              );
-            },
+                ),
+              ),
+            ],
           ),
         ),
-        IgnorePointer(child: podCtr.videoTitle ?? const SizedBox()),
+        IgnorePointer(child: playerCtr.videoTitle ?? const SizedBox()),
       ],
     );
   }
 }
 
-class _WebOverlayBottomControlles extends StatelessWidget {
-  final String tag;
+class _WebOverlayBottomControllers extends StatelessWidget {
+  final String? tag;
 
-  const _WebOverlayBottomControlles({
-    required this.tag,
+  const _WebOverlayBottomControllers({
+    this.tag,
   });
 
   @override
   Widget build(BuildContext context) {
-    final podCtr = Get.find<PodGetXVideoController>(tag: tag);
+    final playerCtr = context.read<AllPlayerController>();
     const durationTextStyle = TextStyle(color: Colors.white70);
     const itemColor = Colors.white;
 
     return MouseRegion(
-      onHover: (event) => podCtr.onOverlayHover(),
-      onExit: (event) => podCtr.onOverlayHoverExit(),
+      onHover: (event) => playerCtr.onOverlayHover(),
+      onExit: (event) => playerCtr.onOverlayHoverExit(),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            PodProgressBar(
-              tag: tag,
-              podProgressBarConfig: podCtr.podProgressBarConfig,
+            AllProgressBar(
+              controller: playerCtr,
+              progressBarConfig: playerCtr.progressBarConfig,
             ),
             Row(
               children: [
@@ -99,54 +91,41 @@ class _WebOverlayBottomControlles extends StatelessWidget {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
-                    child: Row(
-                      children: [
-                        _AnimatedPlayPauseIcon(tag: tag),
-                        GetBuilder<PodGetXVideoController>(
-                          tag: tag,
-                          id: 'volume',
-                          builder: (podCtr) => MaterialIconButton(
-                            toolTipMesg: podCtr.isMute
-                                ? podCtr.podPlayerLabels.unmute ??
-                                    'Unmute${kIsWeb ? ' (m)' : ''}'
-                                : podCtr.podPlayerLabels.mute ??
-                                    'Mute${kIsWeb ? ' (m)' : ''}',
-                            color: itemColor,
-                            onPressed: podCtr.toggleMute,
-                            child: Icon(
-                              podCtr.isMute
-                                  ? Icons.volume_off_rounded
-                                  : Icons.volume_up_rounded,
+                    child: BlocBuilder<AllPlayerController, AllPlayerState>(
+                      builder: (context, state) {
+                        return Row(
+                          children: [
+                            _AnimatedPlayPauseIcon(tag: tag),
+                            MaterialIconButton(
+                              toolTipMesg: state.isMute
+                                  ? playerCtr.playerLabels.unmute ??
+                                      'Unmute${kIsWeb ? ' (m)' : ''}'
+                                  : playerCtr.playerLabels.mute ??
+                                      'Mute${kIsWeb ? ' (m)' : ''}',
+                              color: itemColor,
+                              onPressed: playerCtr.toggleVolume,
+                              child: Icon(
+                                state.isMute
+                                    ? Icons.volume_off_rounded
+                                    : Icons.volume_up_rounded,
+                              ),
                             ),
-                          ),
-                        ),
-                        GetBuilder<PodGetXVideoController>(
-                          tag: tag,
-                          id: 'video-progress',
-                          builder: (podCtr) {
-                            return Row(
+                            Row(
                               children: [
                                 Text(
-                                  podCtr.calculateVideoDuration(
-                                    podCtr.videoPosition,
-                                  ),
+                                  playerCtr.calculateVideoDuration(state.videoPosition),
                                   style: durationTextStyle,
                                 ),
-                                const Text(
-                                  ' / ',
-                                  style: durationTextStyle,
-                                ),
+                                const Text(' / ', style: durationTextStyle),
                                 Text(
-                                  podCtr.calculateVideoDuration(
-                                    podCtr.videoDuration,
-                                  ),
+                                  playerCtr.calculateVideoDuration(state.videoDuration),
                                   style: durationTextStyle,
                                 ),
                               ],
-                            );
-                          },
-                        ),
-                      ],
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -155,24 +134,34 @@ class _WebOverlayBottomControlles extends StatelessWidget {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerRight,
-                    child: Row(
-                      children: [
-                        _WebSettingsDropdown(tag: tag),
-                        MaterialIconButton(
-                          toolTipMesg: podCtr.isFullScreen
-                              ? podCtr.podPlayerLabels.exitFullScreen ??
-                                  'Exit full screen${kIsWeb ? ' (f)' : ''}'
-                              : podCtr.podPlayerLabels.fullscreen ??
-                                  'Fullscreen${kIsWeb ? ' (f)' : ''}',
-                          color: itemColor,
-                          onPressed: () => _onFullScreenToggle(podCtr, context),
-                          child: Icon(
-                            podCtr.isFullScreen
-                                ? Icons.fullscreen_exit
-                                : Icons.fullscreen,
-                          ),
-                        ),
-                      ],
+                    child: BlocBuilder<AllPlayerController, AllPlayerState>(
+                      builder: (context, state) {
+                        return Row(
+                          children: [
+                            _WebSettingsDropdown(tag: tag),
+                            MaterialIconButton(
+                              toolTipMesg: state.isFullScreen
+                                  ? playerCtr.playerLabels.exitFullScreen ??
+                                      'Exit full screen${kIsWeb ? ' (f)' : ''}'
+                                  : playerCtr.playerLabels.fullscreen ??
+                                      'Fullscreen${kIsWeb ? ' (f)' : ''}',
+                              color: itemColor,
+                              onPressed: () {
+                                if (state.isOverlayVisible) {
+                                  playerCtr.toggleFullScreen(context);
+                                } else {
+                                  playerCtr.toggleVideoOverlay();
+                                }
+                              },
+                              child: Icon(
+                                state.isFullScreen
+                                    ? Icons.fullscreen_exit
+                                    : Icons.fullscreen,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -182,32 +171,5 @@ class _WebOverlayBottomControlles extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  void _onFullScreenToggle(
-    PodGetXVideoController podCtr,
-    BuildContext context,
-  ) {
-    if (podCtr.isOverlayVisible) {
-      if (podCtr.isFullScreen) {
-        if (kIsWeb) {
-          uni_html.document.exitFullscreen();
-          podCtr.disableFullScreen(context, tag);
-          return;
-        } else {
-          podCtr.disableFullScreen(context, tag);
-        }
-      } else {
-        if (kIsWeb) {
-          uni_html.document.documentElement?.requestFullscreen();
-          podCtr.enableFullScreen(tag);
-          return;
-        } else {
-          podCtr.enableFullScreen(tag);
-        }
-      }
-    } else {
-      podCtr.toggleVideoOverlay();
-    }
   }
 }

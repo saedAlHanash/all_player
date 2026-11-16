@@ -1,3 +1,11 @@
+## 1.0.0
+- Rebranded to `all_player`.
+- Replaced GetX architecture with clean `Cubit` (`flutter_bloc`) state management.
+- Divided YouTube playback into `PlayVideoFrom.youtubePlayer` (native `video_player` stream) and `PlayVideoFrom.youtubeIframe` (`youtube_player_flutter` WebView iframe).
+- Added smart platform auto-detection via `PlayVideoFrom.auto(...)` with configurable `preferYoutubeMode`.
+- Modernized all Flutter widgets, removed deprecated APIs (`PopScope`, `KeyboardListener`).
+- Complete elimination of legacy player references.
+
 ## 0.2.2
 - fixed broken vimeo api requests
 - upgraded minimum sdk version from ">=2.17.0 <4.0.0" to ">=3.0.0 <4.0.0"
@@ -11,7 +19,7 @@
 
 ## 0.2.0
   - upgraded dependencies 
-  - migrate from `wakelock` to `wakelock_plus` PR [#129](https://github.com/newtaDev/pod_player/pull/129)
+  - migrate from `wakelock` to `wakelock_plus` PR [#129](https://github.com/newtaDev/all_player/pull/129)
   - fixed all lint rules
   - migrated `VideoPlayerController.network` to `VideoPlayerController.networkUrl`
   - Breaking:
@@ -22,7 +30,7 @@
   - upgraded dependencies 
   - Updated Readme file
 ## 0.1.4
-  - added pod player logo to pub.dev
+  - added all player logo to pub.dev
 ## 0.1.3
   - fix: unable to find directory entry in pubspec.yaml #114
   - merged PR #109 
@@ -30,7 +38,7 @@
   - fixed #82
 ## 0.1.1
   - Feature
-    - support vimeo private video [ref](https://github.com/newtaDev/pod_player#how-to-play-video-from-vimeo-private-videos)
+    - support vimeo private video [ref](https://github.com/newtaDev/all_player#how-to-play-video-from-vimeo-private-videos)
     - double tap ripple effect added
   - upgraded dependencies
   - merged PR #66 #77 #78
@@ -38,11 +46,11 @@
 
 - Breaking change:
 
-  - In `PodPlayerConfig` `initialVideoQuality` changed to `videoQualityPriority` to support priority of video qualities
+  - In `AllPlayerConfig` `initialVideoQuality` changed to `videoQualityPriority` to support priority of video qualities
 
   ```dart
-  controller = PodPlayerController(
-  podPlayerConfig: const PodPlayerConfig(
+  controller = AllPlayerController(
+  allPlayerConfig: const AllPlayerConfig(
     videoQualityPriority: [1080, 720, 360],
   ),
   )..initialise()
@@ -51,21 +59,21 @@
 - Features
 
   - Support for youtube live videos By [`(@vodino)`](https://github.com/vodino)
-  - Added: `videoQualityPriority` to `PodPlayerConfig` By [`(@emersonsiega)`](https://github.com/emersonsiega)
-  - Added: callback `onToggleFullScreen` when changes in fullscreen mode [#48](https://github.com/newtaDev/pod_player/issues/48)
+  - Added: `videoQualityPriority` to `AllPlayerConfig` By [`(@emersonsiega)`](https://github.com/emersonsiega)
+  - Added: callback `onToggleFullScreen` when changes in fullscreen mode [#48](https://github.com/newtaDev/all_player/issues/48)
   - Added: `hideOverlay` and `showOverlay` functions to controller
 
 - Bug Fixes
   - Merged PR #54 By [`(@emersonsiega)`](https://github.com/emersonsiega)
-    - Fix unhandled exception on initialization [#49](https://github.com/newtaDev/pod_player/issues/49)
+    - Fix unhandled exception on initialization [#49](https://github.com/newtaDev/all_player/issues/49)
     - Add video quality priority list
     - Changes in `onToggleFullScreen`
 
 ## 0.0.8
 
 - Merged PR #37 & #38, By [`(@Jeferson505)`](https://github.com/Jeferson505)
-  - Added `PodPlayerLabels` param to `PodVideoPlayer` widget
-  - Added PodPlayerLabels usage example in `from_asset` file
+  - Added `AllPlayerLabels` param to `AllVideoPlayer` widget
+  - Added AllPlayerLabels usage example in `from_asset` file
   - Seted `normal` playback speed to `1x`
 - bug fix and added example for playing videos in list
 

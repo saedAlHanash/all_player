@@ -1,9 +1,12 @@
-part of 'package:pod_player/src/pod_player.dart';
+part of 'package:all_player/src/all_player.dart';
 
 class FullScreenView extends StatefulWidget {
-  final String tag;
+  final AllPlayerController controller;
+  final String? tag;
+
   const FullScreenView({
-    required this.tag,
+    required this.controller,
+    this.tag,
     super.key,
   });
 
@@ -11,70 +14,54 @@ class FullScreenView extends StatefulWidget {
   State<FullScreenView> createState() => _FullScreenViewState();
 }
 
-class _FullScreenViewState extends State<FullScreenView>
-    with TickerProviderStateMixin {
-  late PodGetXVideoController _podCtr;
-  @override
-  void initState() {
-    _podCtr = Get.find<PodGetXVideoController>(tag: widget.tag);
-    _podCtr.fullScreenContext = context;
-    _podCtr.keyboardFocusWeb?.removeListener(_podCtr.keyboadListner);
-
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    _podCtr.keyboardFocusWeb?.requestFocus();
-    _podCtr.keyboardFocusWeb?.addListener(_podCtr.keyboadListner);
-    super.dispose();
-  }
-
+class _FullScreenViewState extends State<FullScreenView> {
   @override
   Widget build(BuildContext context) {
-    final loadingWidget = _podCtr.onLoading?.call(context) ??
-        const CircularProgressIndicator(
-          backgroundColor: Colors.black87,
-          color: Colors.white,
-          strokeWidth: 2,
+    final playerCtr = widget.controller;
+    final loadingWidget = playerCtr.onLoading?.call(context) ??
+        const Center(
+          child: CircularProgressIndicator(
+            backgroundColor: Colors.black87,
+            color: Colors.white,
+            strokeWidth: 2,
+          ),
         );
 
-    return WillPopScope(
-      onWillPop: () async {
-        if (kIsWeb) {
-          await _podCtr.disableFullScreen(
-            context,
-            widget.tag,
-            enablePop: false,
-          );
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) {
+          await playerCtr.disableFullScreen(context, enablePop: false);
         }
-        if (!kIsWeb) await _podCtr.disableFullScreen(context, widget.tag);
-        return true;
       },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: GetBuilder<PodGetXVideoController>(
-          tag: widget.tag,
-          builder: (podCtr) => Center(
-            child: ColoredBox(
-              color: Colors.black,
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height,
-                width: MediaQuery.of(context).size.width,
-                child: Center(
-                  child: podCtr.videoCtr == null
-                      ? loadingWidget
-                      : podCtr.videoCtr!.value.isInitialized
-                          ? _PodCoreVideoPlayer(
-                              tag: widget.tag,
-                              videoPlayerCtr: podCtr.videoCtr!,
-                              videoAspectRatio:
-                                  podCtr.videoCtr?.value.aspectRatio ?? 16 / 9,
-                            )
-                          : loadingWidget,
+      child: BlocProvider.value(
+        value: playerCtr,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: BlocBuilder<AllPlayerController, AllPlayerState>(
+            builder: (context, state) {
+              return Center(
+                child: ColoredBox(
+                  color: Colors.black,
+                  child: SizedBox(
+                    height: MediaQuery.of(context).size.height,
+                    width: MediaQuery.of(context).size.width,
+                    child: Center(
+                      child: playerCtr.videoCtr == null
+                          ? loadingWidget
+                          : playerCtr.videoCtr!.value.isInitialized
+                              ? _AllCoreVideoPlayer(
+                                  tag: widget.tag,
+                                  videoPlayerCtr: playerCtr.videoCtr!,
+                                  videoAspectRatio:
+                                      playerCtr.videoCtr?.value.aspectRatio ?? 16 / 9,
+                                )
+                              : loadingWidget,
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),

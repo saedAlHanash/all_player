@@ -1,54 +1,47 @@
-part of 'package:pod_player/src/pod_player.dart';
+part of 'package:all_player/src/all_player.dart';
 
 class _VideoOverlays extends StatelessWidget {
-  final String tag;
+  final String? tag;
 
   const _VideoOverlays({
-    required this.tag,
+    this.tag,
   });
 
   @override
   Widget build(BuildContext context) {
-    final podCtr = Get.find<PodGetXVideoController>(tag: tag);
-    if (podCtr.overlayBuilder != null) {
-      return GetBuilder<PodGetXVideoController>(
-        id: 'update-all',
-        tag: tag,
-        builder: (podCtr) {
-          ///Custom overlay
-          final progressBar = PodProgressBar(
-            tag: tag,
-            podProgressBarConfig: podCtr.podProgressBarConfig,
+    final playerCtr = context.read<AllPlayerController>();
+    if (playerCtr.overlayBuilder != null) {
+      return BlocBuilder<AllPlayerController, AllPlayerState>(
+        builder: (context, state) {
+          final progressBar = AllProgressBar(
+            controller: playerCtr,
+            progressBarConfig: playerCtr.progressBarConfig,
           );
           final overlayOptions = OverLayOptions(
-            podVideoState: podCtr.podVideoState,
-            videoDuration: podCtr.videoDuration,
-            videoPosition: podCtr.videoPosition,
-            isFullScreen: podCtr.isFullScreen,
-            isLooping: podCtr.isLooping,
-            isOverlayVisible: podCtr.isOverlayVisible,
-            isMute: podCtr.isMute,
-            autoPlay: podCtr.autoPlay,
-            currentVideoPlaybackSpeed: podCtr.currentPaybackSpeed,
-            videoPlayBackSpeeds: podCtr.videoPlaybackSpeeds,
-            videoPlayerType: podCtr.videoPlayerType,
-            podProgresssBar: progressBar,
+            playerStatus: state.playerStatus,
+            videoDuration: state.videoDuration,
+            videoPosition: state.videoPosition,
+            isFullScreen: state.isFullScreen,
+            isLooping: state.isLooping,
+            isOverlayVisible: state.isOverlayVisible,
+            isMute: state.isMute,
+            autoPlay: playerCtr.playerConfig.autoPlay,
+            currentVideoPlaybackSpeed: state.playbackSpeed,
+            videoPlayBackSpeeds: AllPlayerController.videoPlaybackSpeeds,
+            videoPlayerType: playerCtr.videoPlayerType,
+            progressBar: progressBar,
           );
 
-          /// Returns the custom overlay, otherwise returns the default
-          /// overlay with gesture detector
-          return podCtr.overlayBuilder!(overlayOptions);
+          return playerCtr.overlayBuilder!(overlayOptions);
         },
       );
     } else {
-      ///Built in overlay
-      return GetBuilder<PodGetXVideoController>(
-        tag: tag,
-        id: 'overlay',
-        builder: (podCtr) {
+      return BlocBuilder<AllPlayerController, AllPlayerState>(
+        buildWhen: (prev, curr) => prev.isOverlayVisible != curr.isOverlayVisible,
+        builder: (context, state) {
           return AnimatedOpacity(
             duration: const Duration(milliseconds: 200),
-            opacity: podCtr.isOverlayVisible ? 1 : 0,
+            opacity: state.isOverlayVisible ? 1 : 0,
             child: Stack(
               fit: StackFit.passthrough,
               children: [

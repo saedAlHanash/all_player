@@ -1,6 +1,6 @@
 import 'dart:developer';
 
-import '../../pod_player.dart';
+import '../all_player.dart';
 
-void podLog(String message) =>
-    PodVideoPlayer.enableLogs ? log(message, name: 'POD') : null;
+void allPlayerLog(String message) =>
+    AllPlayer.enableLogs ? log(message, name: 'ALL_PLAYER') : null;

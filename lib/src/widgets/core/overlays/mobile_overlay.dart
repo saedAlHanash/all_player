@@ -1,17 +1,17 @@
-part of 'package:pod_player/src/pod_player.dart';
+part of 'package:all_player/src/all_player.dart';
 
 class _MobileOverlay extends StatelessWidget {
-  final String tag;
+  final String? tag;
 
   const _MobileOverlay({
-    required this.tag,
+    this.tag,
   });
 
   @override
   Widget build(BuildContext context) {
     const overlayColor = Colors.black38;
     const itemColor = Colors.white;
-    final podCtr = Get.find<PodGetXVideoController>(tag: tag);
+    final playerCtr = context.read<AllPlayerController>();
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -27,8 +27,8 @@ class _MobileOverlay extends StatelessWidget {
                     isForward: false,
                     height: double.maxFinite,
                     onDoubleTap: _isRtl()
-                        ? podCtr.onRightDoubleTap
-                        : podCtr.onLeftDoubleTap,
+                        ? playerCtr.onRightDoubleTap
+                        : playerCtr.onLeftDoubleTap,
                   ),
                 ),
                 SizedBox(
@@ -43,8 +43,8 @@ class _MobileOverlay extends StatelessWidget {
                     tag: tag,
                     height: double.maxFinite,
                     onDoubleTap: _isRtl()
-                        ? podCtr.onLeftDoubleTap
-                        : podCtr.onRightDoubleTap,
+                        ? playerCtr.onLeftDoubleTap
+                        : playerCtr.onRightDoubleTap,
                   ),
                 ),
               ],
@@ -58,29 +58,32 @@ class _MobileOverlay extends StatelessWidget {
             children: [
               Expanded(
                 child: IgnorePointer(
-                  child: podCtr.videoTitle ?? const SizedBox(),
+                  child: playerCtr.videoTitle ?? const SizedBox(),
                 ),
               ),
-              MaterialIconButton(
-                toolTipMesg: podCtr.podPlayerLabels.settings,
-                color: itemColor,
-                onPressed: () {
-                  if (podCtr.isOverlayVisible) {
-                    _bottomSheet(context);
-                  } else {
-                    podCtr.toggleVideoOverlay();
-                  }
+              BlocBuilder<AllPlayerController, AllPlayerState>(
+                buildWhen: (prev, curr) => prev.isOverlayVisible != curr.isOverlayVisible,
+                builder: (context, state) {
+                  return MaterialIconButton(
+                    toolTipMesg: playerCtr.playerLabels.settings,
+                    color: itemColor,
+                    onPressed: () {
+                      if (state.isOverlayVisible) {
+                        _bottomSheet(context, playerCtr);
+                      } else {
+                        playerCtr.toggleVideoOverlay();
+                      }
+                    },
+                    child: const Icon(Icons.more_vert_rounded),
+                  );
                 },
-                child: const Icon(
-                  Icons.more_vert_rounded,
-                ),
               ),
             ],
           ),
         ),
         Align(
           alignment: Alignment.bottomLeft,
-          child: _MobileOverlayBottomControlles(tag: tag),
+          child: _MobileOverlayBottomControllers(tag: tag),
         ),
       ],
     );
@@ -104,10 +107,13 @@ class _MobileOverlay extends StatelessWidget {
     return false;
   }
 
-  void _bottomSheet(BuildContext context) {
+  void _bottomSheet(BuildContext context, AllPlayerController playerCtr) {
     showModalBottomSheet<void>(
       context: context,
-      builder: (context) => SafeArea(child: _MobileBottomSheet(tag: tag)),
+      builder: (ctx) => BlocProvider.value(
+        value: playerCtr,
+        child: SafeArea(child: _MobileBottomSheet(tag: tag)),
+      ),
     );
   }
 }

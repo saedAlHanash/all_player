@@ -29,8 +29,8 @@ typedef GetProgressBarHandlePaint = Paint Function({
   double? circleHandlerRadius,
 });
 
-class PodProgressBarConfig {
-  const PodProgressBarConfig({
+class AllProgressBarConfig {
+  const AllProgressBarConfig({
     this.playingBarColor = Colors.red,
     this.bufferedBarColor = const Color.fromRGBO(255, 255, 255, 0.38),
     this.circleHandlerColor = Colors.red,
@@ -46,48 +46,21 @@ class PodProgressBarConfig {
     this.curveRadius = 4,
   });
 
-  /// Color for played area, not applied if [getPlayedPaint] is provided.
   final Color playingBarColor;
-
-  /// Color for buffered area, not applied if [getBufferedPaint] is provided.
   final Color bufferedBarColor;
-
-  /// Color for handle, not applied if [getCircleHandlerPaint] is provided.
   final Color circleHandlerColor;
-
   final bool alwaysVisibleCircleHandler;
-
-  /// Color for background area, not applied if [getBackgroundPaint] is provided.
   final Color backgroundColor;
-
-  /// Paint for played area.
   final GetProgressBarPlayedPaint? getPlayedPaint;
-
-  /// Paint for buffered area.
   final GetProgressBarBufferedPaint? getBufferedPaint;
-
-  /// Paint for handle.
   final GetProgressBarHandlePaint? getCircleHandlerPaint;
-
-  /// Paint for background area.
   final GetProgressBarBackgroundPaint? getBackgroundPaint;
-
-  /// Height of the progress bar.
   final double height;
-
-  /// Padding for the progress bar.
-  /// Padding area is included in the [GestureDetector].
   final EdgeInsetsGeometry padding;
-
-  /// Handle radius.
-  /// Should be bigger then [height] so that handle is visible.
-  /// 0.0 will hide the handle.
   final double circleHandlerRadius;
-
-  /// Radius to curve the ends of the bar.
   final double curveRadius;
 
-  PodProgressBarConfig copyWith({
+  AllProgressBarConfig copyWith({
     Color? playingBarColor,
     Color? bufferedBarColor,
     Color? circleHandlerColor,
@@ -102,7 +75,7 @@ class PodProgressBarConfig {
     double? circleHandlerRadius,
     double? curveRadius,
   }) {
-    return PodProgressBarConfig(
+    return AllProgressBarConfig(
       playingBarColor: playingBarColor ?? this.playingBarColor,
       bufferedBarColor: bufferedBarColor ?? this.bufferedBarColor,
       circleHandlerColor: circleHandlerColor ?? this.circleHandlerColor,

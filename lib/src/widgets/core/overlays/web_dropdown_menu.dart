@@ -1,10 +1,10 @@
-part of 'package:pod_player/src/pod_player.dart';
+part of 'package:all_player/src/all_player.dart';
 
 class _WebSettingsDropdown extends StatefulWidget {
-  final String tag;
+  final String? tag;
 
   const _WebSettingsDropdown({
-    required this.tag,
+    this.tag,
   });
 
   @override
@@ -14,49 +14,47 @@ class _WebSettingsDropdown extends StatefulWidget {
 class _WebSettingsDropdownState extends State<_WebSettingsDropdown> {
   @override
   Widget build(BuildContext context) {
+    final playerCtr = context.read<AllPlayerController>();
     return Theme(
       data: Theme.of(context).copyWith(
         focusColor: Colors.white,
       ),
-      child: GetBuilder<PodGetXVideoController>(
-        tag: widget.tag,
-        builder: (podCtr) {
+      child: BlocBuilder<AllPlayerController, AllPlayerState>(
+        builder: (context, state) {
           return MaterialIconButton(
-            toolTipMesg: podCtr.podPlayerLabels.settings,
+            toolTipMesg: playerCtr.playerLabels.settings,
             color: Colors.white,
             child: const Icon(Icons.settings),
-            onPressed: () => podCtr.isFullScreen
-                ? podCtr.isWebPopupOverlayOpen = true
-                : podCtr.isWebPopupOverlayOpen = false,
+            onPressed: () {},
             onTapDown: (details) async {
               final settingsMenu = await showMenu<String>(
                 context: context,
                 items: [
-                  if (podCtr.vimeoOrVideoUrls.isNotEmpty)
+                  if (state.availableQualities.isNotEmpty)
                     PopupMenuItem(
-                      value: 'OUALITY',
+                      value: 'QUALITY',
                       child: _bottomSheetTiles(
-                        title: podCtr.podPlayerLabels.quality,
+                        title: playerCtr.playerLabels.quality,
                         icon: Icons.video_settings_rounded,
-                        subText: '${podCtr.vimeoPlayingVideoQuality}p',
+                        subText: '${state.currentQuality ?? 0}p',
                       ),
                     ),
                   PopupMenuItem(
                     value: 'LOOP',
                     child: _bottomSheetTiles(
-                      title: podCtr.podPlayerLabels.loopVideo,
+                      title: playerCtr.playerLabels.loopVideo,
                       icon: Icons.loop_rounded,
-                      subText: podCtr.isLooping
-                          ? podCtr.podPlayerLabels.optionEnabled
-                          : podCtr.podPlayerLabels.optionDisabled,
+                      subText: state.isLooping
+                          ? playerCtr.playerLabels.optionEnabled
+                          : playerCtr.playerLabels.optionDisabled,
                     ),
                   ),
                   PopupMenuItem(
                     value: 'SPEED',
                     child: _bottomSheetTiles(
-                      title: podCtr.podPlayerLabels.playbackSpeed,
+                      title: playerCtr.playerLabels.playbackSpeed,
                       icon: Icons.slow_motion_video_rounded,
-                      subText: podCtr.currentPaybackSpeed,
+                      subText: state.playbackSpeed,
                     ),
                   ),
                 ],
@@ -65,16 +63,14 @@ class _WebSettingsDropdownState extends State<_WebSettingsDropdown> {
                   MediaQuery.of(context).size,
                 ),
               );
+              if (!mounted) return;
               switch (settingsMenu) {
-                case 'OUALITY':
-                  await _onVimeoQualitySelect(details, podCtr);
+                case 'QUALITY':
+                  await _onQualitySelect(details, playerCtr, state);
                 case 'SPEED':
-                  await _onPlaybackSpeedSelect(details, podCtr);
+                  await _onPlaybackSpeedSelect(details, playerCtr);
                 case 'LOOP':
-                  podCtr.isWebPopupOverlayOpen = false;
-                  await podCtr.toggleLooping();
-                default:
-                  podCtr.isWebPopupOverlayOpen = false;
+                  await playerCtr.toggleLooping();
               }
             },
           );
@@ -85,64 +81,49 @@ class _WebSettingsDropdownState extends State<_WebSettingsDropdown> {
 
   Future<void> _onPlaybackSpeedSelect(
     TapDownDetails details,
-    PodGetXVideoController podCtr,
+    AllPlayerController playerCtr,
   ) async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 400),
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    if (!mounted) return;
     await showMenu(
       context: context,
-      items: podCtr.videoPlaybackSpeeds
+      items: AllPlayerController.videoPlaybackSpeeds
           .map(
             (e) => PopupMenuItem<dynamic>(
-              child: ListTile(
-                title: Text(e),
-              ),
-              onTap: () {
-                podCtr.setVideoPlayBack(e);
-              },
+              child: ListTile(title: Text(e)),
+              onTap: () => playerCtr.setVideoPlayback(e),
             ),
           )
           .toList(),
       position: RelativeRect.fromSize(
         details.globalPosition & Size.zero,
-        // ignore: use_build_context_synchronously
         MediaQuery.of(context).size,
       ),
     );
-    podCtr.isWebPopupOverlayOpen = false;
   }
 
-  Future<void> _onVimeoQualitySelect(
+  Future<void> _onQualitySelect(
     TapDownDetails details,
-    PodGetXVideoController podCtr,
+    AllPlayerController playerCtr,
+    AllPlayerState state,
   ) async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 400),
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    if (!mounted) return;
     await showMenu(
       context: context,
-      items: podCtr.vimeoOrVideoUrls
+      items: state.availableQualities
           .map(
             (e) => PopupMenuItem<dynamic>(
-              child: ListTile(
-                title: Text('${e.quality}p'),
-              ),
-              onTap: () {
-                podCtr.changeVideoQuality(
-                  e.quality,
-                );
-              },
+              child: ListTile(title: Text('${e.quality}p')),
+              onTap: () => playerCtr.changeVideoQuality(e.quality),
             ),
           )
           .toList(),
       position: RelativeRect.fromSize(
         details.globalPosition & Size.zero,
-        // ignore: use_build_context_synchronously
         MediaQuery.of(context).size,
       ),
     );
-    podCtr.isWebPopupOverlayOpen = false;
   }
 
   Widget _bottomSheetTiles({
@@ -159,9 +140,7 @@ class _WebSettingsDropdownState extends State<_WebSettingsDropdown> {
           children: [
             Icon(icon),
             const SizedBox(width: 20),
-            Text(
-              title,
-            ),
+            Text(title),
             if (subText != null) const SizedBox(width: 10),
             if (subText != null)
               const SizedBox(

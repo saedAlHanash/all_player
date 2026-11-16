@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../controllers/pod_getx_video_controller.dart';
+import '../controllers/all_player_controller.dart';
+import '../controllers/all_player_state.dart';
 import 'doubble_tap_effect.dart';
 
 class DoubleTapIcon extends StatefulWidget {
   final void Function() onDoubleTap;
-  final String tag;
+  final String? tag;
   final bool iconOnly;
   final bool isForward;
   final double height;
@@ -14,8 +15,8 @@ class DoubleTapIcon extends StatefulWidget {
 
   const DoubleTapIcon({
     required this.onDoubleTap,
-    required this.tag,
     required this.isForward,
+    this.tag,
     super.key,
     this.iconOnly = false,
     this.height = 50,
@@ -44,25 +45,10 @@ class _DoubleTapIconState extends State<DoubleTapIcon>
         curve: Curves.easeInOut,
       ),
     );
-    final podCtr = Get.find<PodGetXVideoController>(tag: widget.tag);
-    if (widget.iconOnly && !widget.isForward) {
-      podCtr.addListenerId('double-tap-left', _onDoubleTap);
-    }
-    if (widget.iconOnly && widget.isForward) {
-      podCtr.addListenerId('double-tap-right', _onDoubleTap);
-    }
   }
 
   @override
   void dispose() {
-    final podCtr = Get.find<PodGetXVideoController>(tag: widget.tag);
-
-    if (widget.iconOnly && !widget.isForward) {
-      podCtr.removeListenerId('double-tap-left', _onDoubleTap);
-    }
-    if (widget.iconOnly && widget.isForward) {
-      podCtr.removeListenerId('double-tap-right', _onDoubleTap);
-    }
     _animationController.dispose();
     super.dispose();
   }
@@ -70,7 +56,7 @@ class _DoubleTapIconState extends State<DoubleTapIcon>
   void _onDoubleTap() {
     widget.onDoubleTap();
     _animationController.forward().then((_) {
-      _animationController.reverse();
+      if (mounted) _animationController.reverse();
     });
   }
 
@@ -99,7 +85,7 @@ class _DoubleTapIconState extends State<DoubleTapIcon>
     );
   }
 
-  SizedBox iconWithText() {
+  Widget iconWithText() {
     return SizedBox(
       height: widget.height,
       width: widget.width,
@@ -143,29 +129,26 @@ class _DoubleTapIconState extends State<DoubleTapIcon>
                     ],
                   ),
                 ),
-                GetBuilder<PodGetXVideoController>(
-                  tag: widget.tag,
-                  id: 'double-tap',
-                  builder: (podCtr) {
-                    if (widget.isForward && podCtr.isRightDbTapIconVisible) {
+                BlocBuilder<AllPlayerController, AllPlayerState>(
+                  buildWhen: (prev, curr) =>
+                      prev.isLeftDbTapIconVisible != curr.isLeftDbTapIconVisible ||
+                      prev.isRightDbTapIconVisible != curr.isRightDbTapIconVisible ||
+                      prev.leftDoubleTapDuration != curr.leftDoubleTapDuration ||
+                      prev.rightDoubleTapDuration != curr.rightDoubleTapDuration,
+                  builder: (context, state) {
+                    final isVisible = widget.isForward
+                        ? state.isRightDbTapIconVisible
+                        : state.isLeftDbTapIconVisible;
+                    final duration = widget.isForward
+                        ? state.rightDoubleTapDuration
+                        : state.leftDoubleTapDuration;
+
+                    if (isVisible && duration > 0) {
                       return AnimatedOpacity(
                         duration: const Duration(milliseconds: 300),
                         opacity: opacityCtr.value,
                         child: Text(
-                          '${podCtr.isLeftDbTapIconVisible ? podCtr.leftDoubleTapduration : podCtr.rightDubleTapduration} Sec',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      );
-                    }
-                    if (!widget.isForward && podCtr.isLeftDbTapIconVisible) {
-                      return AnimatedOpacity(
-                        duration: const Duration(milliseconds: 300),
-                        opacity: opacityCtr.value,
-                        child: Text(
-                          '${podCtr.isLeftDbTapIconVisible ? podCtr.leftDoubleTapduration : podCtr.rightDubleTapduration} Sec',
+                          '$duration Sec',
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,

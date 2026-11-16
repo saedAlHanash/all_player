@@ -1,68 +1,70 @@
-part of 'package:pod_player/src/pod_player.dart';
+part of 'package:all_player/src/all_player.dart';
 
 class _MobileBottomSheet extends StatelessWidget {
-  final String tag;
+  final String? tag;
 
   const _MobileBottomSheet({
-    required this.tag,
+    this.tag,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GetBuilder<PodGetXVideoController>(
-      tag: tag,
-      builder: (podCtr) => Column(
+    final playerCtr = context.read<AllPlayerController>();
+    return BlocBuilder<AllPlayerController, AllPlayerState>(
+      builder: (context, state) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (podCtr.vimeoOrVideoUrls.isNotEmpty)
+          if (state.availableQualities.isNotEmpty)
             _bottomSheetTiles(
-              title: podCtr.podPlayerLabels.quality,
+              title: playerCtr.playerLabels.quality,
               icon: Icons.video_settings_rounded,
-              subText: '${podCtr.vimeoPlayingVideoQuality}p',
+              subText: '${state.currentQuality ?? 0}p',
               onTap: () {
-
                 Navigator.of(context).pop();
                 Timer(const Duration(milliseconds: 100), () {
                   showModalBottomSheet<void>(
                     context: context,
-                    builder: (context) => SafeArea(
-                      child: _VideoQualitySelectorMob(
-                        tag: tag,
-                        onTap: null,
+                    builder: (ctx) => BlocProvider.value(
+                      value: playerCtr,
+                      child: SafeArea(
+                        child: _VideoQualitySelectorMob(
+                          tag: tag,
+                          onTap: null,
+                        ),
                       ),
                     ),
                   );
                 });
-                // await Future.delayed(
-                //   const Duration(milliseconds: 100),
-                // );
               },
             ),
           _bottomSheetTiles(
-            title: podCtr.podPlayerLabels.loopVideo,
+            title: playerCtr.playerLabels.loopVideo,
             icon: Icons.loop_rounded,
-            subText: podCtr.isLooping
-                ? podCtr.podPlayerLabels.optionEnabled
-                : podCtr.podPlayerLabels.optionDisabled,
+            subText: state.isLooping
+                ? playerCtr.playerLabels.optionEnabled
+                : playerCtr.playerLabels.optionDisabled,
             onTap: () {
               Navigator.of(context).pop();
-              podCtr.toggleLooping();
+              playerCtr.toggleLooping();
             },
           ),
           _bottomSheetTiles(
-            title: podCtr.podPlayerLabels.playbackSpeed,
+            title: playerCtr.playerLabels.playbackSpeed,
             icon: Icons.slow_motion_video_rounded,
-            subText: podCtr.currentPaybackSpeed,
+            subText: state.playbackSpeed,
             onTap: () {
               Navigator.of(context).pop();
               Timer(const Duration(milliseconds: 100), () {
                 showModalBottomSheet<void>(
                   context: context,
                   isScrollControlled: true,
-                  builder: (context) => SafeArea(
-                    child: _VideoPlaybackSelectorMob(
-                      tag: tag,
-                      onTap: null,
+                  builder: (ctx) => BlocProvider.value(
+                    value: playerCtr,
+                    child: SafeArea(
+                      child: _VideoPlaybackSelectorMob(
+                        tag: tag,
+                        onTap: null,
+                      ),
                     ),
                   ),
                 );
@@ -88,9 +90,7 @@ class _MobileBottomSheet extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: Row(
           children: [
-            Text(
-              title,
-            ),
+            Text(title),
             if (subText != null) const SizedBox(width: 6),
             if (subText != null)
               const SizedBox(
@@ -118,58 +118,61 @@ class _MobileBottomSheet extends StatelessWidget {
 
 class _VideoQualitySelectorMob extends StatelessWidget {
   final void Function()? onTap;
-  final String tag;
+  final String? tag;
 
   const _VideoQualitySelectorMob({
     required this.onTap,
-    required this.tag,
+    this.tag,
   });
 
   @override
   Widget build(BuildContext context) {
-    final podCtr = Get.find<PodGetXVideoController>(tag: tag);
-    return SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: podCtr.vimeoOrVideoUrls
-            .map(
-              (e) => ListTile(
-                title: Text('${e.quality}p'),
-                onTap: () {
-                  onTap != null ? onTap!() : Navigator.of(context).pop();
-
-                  podCtr.changeVideoQuality(e.quality);
-                },
-              ),
-            )
-            .toList(),
-      ),
+    final playerCtr = context.read<AllPlayerController>();
+    return BlocBuilder<AllPlayerController, AllPlayerState>(
+      builder: (context, state) {
+        return SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: state.availableQualities
+                .map(
+                  (e) => ListTile(
+                    title: Text('${e.quality}p'),
+                    onTap: () {
+                      onTap != null ? onTap!() : Navigator.of(context).pop();
+                      playerCtr.changeVideoQuality(e.quality);
+                    },
+                  ),
+                )
+                .toList(),
+          ),
+        );
+      },
     );
   }
 }
 
 class _VideoPlaybackSelectorMob extends StatelessWidget {
   final void Function()? onTap;
-  final String tag;
+  final String? tag;
 
   const _VideoPlaybackSelectorMob({
     required this.onTap,
-    required this.tag,
+    this.tag,
   });
 
   @override
   Widget build(BuildContext context) {
-    final podCtr = Get.find<PodGetXVideoController>(tag: tag);
+    final playerCtr = context.read<AllPlayerController>();
     return SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: podCtr.videoPlaybackSpeeds
+        children: AllPlayerController.videoPlaybackSpeeds
             .map(
               (e) => ListTile(
                 title: Text(e),
                 onTap: () {
                   onTap != null ? onTap!() : Navigator.of(context).pop();
-                  podCtr.setVideoPlayBack(e);
+                  playerCtr.setVideoPlayback(e);
                 },
               ),
             )
@@ -179,100 +182,84 @@ class _VideoPlaybackSelectorMob extends StatelessWidget {
   }
 }
 
-class _MobileOverlayBottomControlles extends StatelessWidget {
-  final String tag;
+class _MobileOverlayBottomControllers extends StatelessWidget {
+  final String? tag;
 
-  const _MobileOverlayBottomControlles({
-    required this.tag,
+  const _MobileOverlayBottomControllers({
+    this.tag,
   });
 
   @override
   Widget build(BuildContext context) {
     const durationTextStyle = TextStyle(color: Colors.white70);
     const itemColor = Colors.white;
+    final playerCtr = context.read<AllPlayerController>();
 
-    return GetBuilder<PodGetXVideoController>(
-      tag: tag,
-      id: 'full-screen',
-      builder: (podCtr) => Column(
+    return BlocBuilder<AllPlayerController, AllPlayerState>(
+      builder: (context, state) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               const SizedBox(width: 12),
-              GetBuilder<PodGetXVideoController>(
-                tag: tag,
-                id: 'video-progress',
-                builder: (podCtr) {
-                  return Row(
-                    children: [
-                      Text(
-                        podCtr.calculateVideoDuration(podCtr.videoPosition),
-                        style: const TextStyle(color: itemColor),
-                      ),
-                      const Text(
-                        ' / ',
-                        style: durationTextStyle,
-                      ),
-                      Text(
-                        podCtr.calculateVideoDuration(podCtr.videoDuration),
-                        style: durationTextStyle,
-                      ),
-                    ],
-                  );
-                },
+              Row(
+                children: [
+                  Text(
+                    playerCtr.calculateVideoDuration(state.videoPosition),
+                    style: const TextStyle(color: itemColor),
+                  ),
+                  const Text(' / ', style: durationTextStyle),
+                  Text(
+                    playerCtr.calculateVideoDuration(state.videoDuration),
+                    style: durationTextStyle,
+                  ),
+                ],
               ),
               const Spacer(),
               MaterialIconButton(
-                toolTipMesg: podCtr.isFullScreen
-                    ? podCtr.podPlayerLabels.exitFullScreen ??
+                toolTipMesg: state.isFullScreen
+                    ? playerCtr.playerLabels.exitFullScreen ??
                         'Exit full screen${kIsWeb ? ' (f)' : ''}'
-                    : podCtr.podPlayerLabels.fullscreen ??
+                    : playerCtr.playerLabels.fullscreen ??
                         'Fullscreen${kIsWeb ? ' (f)' : ''}',
                 color: itemColor,
                 onPressed: () {
-                  if (podCtr.isOverlayVisible) {
-                    if (podCtr.isFullScreen) {
-                      podCtr.disableFullScreen(context, tag);
+                  if (state.isOverlayVisible) {
+                    if (state.isFullScreen) {
+                      playerCtr.disableFullScreen(context);
                     } else {
-                      podCtr.enableFullScreen(tag);
+                      playerCtr.enableFullScreen(context);
                     }
                   } else {
-                    podCtr.toggleVideoOverlay();
+                    playerCtr.toggleVideoOverlay();
                   }
                 },
                 child: Icon(
-                  podCtr.isFullScreen
+                  state.isFullScreen
                       ? Icons.fullscreen_exit
                       : Icons.fullscreen,
                 ),
               ),
             ],
           ),
-          GetBuilder<PodGetXVideoController>(
-            tag: tag,
-            id: 'overlay',
-            builder: (podCtr) {
-              if (podCtr.isFullScreen) {
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                  child: Visibility(
-                    visible: podCtr.isOverlayVisible,
-                    child: PodProgressBar(
-                      tag: tag,
-                      alignment: Alignment.topCenter,
-                      podProgressBarConfig: podCtr.podProgressBarConfig,
-                    ),
-                  ),
-                );
-              }
-              return PodProgressBar(
-                tag: tag,
-                alignment: Alignment.bottomCenter,
-                podProgressBarConfig: podCtr.podProgressBarConfig,
-              );
-            },
-          ),
+          if (state.isFullScreen)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+              child: Visibility(
+                visible: state.isOverlayVisible,
+                child: AllProgressBar(
+                  controller: playerCtr,
+                  alignment: Alignment.topCenter,
+                  progressBarConfig: playerCtr.progressBarConfig,
+                ),
+              ),
+            )
+          else
+            AllProgressBar(
+              controller: playerCtr,
+              alignment: Alignment.bottomCenter,
+              progressBarConfig: playerCtr.progressBarConfig,
+            ),
         ],
       ),
     );

@@ -1,12 +1,12 @@
 import 'dart:io';
 
-import '../../pod_player.dart';
+import '../../all_player.dart';
 
 class PlayVideoFrom {
   final String? dataSource;
   final String? hash;
   final String? token;
-  final PodVideoPlayerType playerType;
+  final AllPlayerType playerType;
   final VideoFormat? formatHint;
   final String? package;
   final File? file;
@@ -15,6 +15,7 @@ class PlayVideoFrom {
   final VideoPlayerOptions? videoPlayerOptions;
   final Map<String, String> httpHeaders;
   final bool live;
+  final YoutubePlayerParams? youtubeParams;
 
   const PlayVideoFrom._({
     required this.playerType,
@@ -29,7 +30,78 @@ class PlayVideoFrom {
     this.closedCaptionFile,
     this.videoPlayerOptions,
     this.httpHeaders = const {},
+    this.youtubeParams,
   });
+
+  /// Automatically detects the platform (YouTube, Vimeo, Dailymotion, Network)
+  /// from the URL or video ID.
+  ///
+  /// For YouTube, [preferYoutubeMode] specifies whether to prefer the
+  /// WebView iframe player or the direct stream player (defaults to [YoutubePlayMode.iframe]).
+  factory PlayVideoFrom.auto(
+    String dataSource, {
+    YoutubePlayMode preferYoutubeMode = YoutubePlayMode.iframe,
+    YoutubePlayerParams? youtubeParams,
+    bool live = false,
+    String? hash,
+    String? token,
+    String? package,
+    VideoFormat? formatHint,
+    Future<ClosedCaptionFile>? closedCaptionFile,
+    VideoPlayerOptions? videoPlayerOptions,
+    Map<String, String> httpHeaders = const {},
+  }) {
+    final platform = dataSource.detectVideoPlatform;
+    switch (platform) {
+      case VideoPlatform.youtube:
+        final videoId = dataSource.youtubeVideoId ?? dataSource;
+        if (preferYoutubeMode.isIframe) {
+          return PlayVideoFrom.youtubeIframe(
+            videoId,
+            params: youtubeParams,
+          );
+        } else {
+          return PlayVideoFrom.youtube(
+            videoId,
+            live: live,
+            formatHint: formatHint,
+            closedCaptionFile: closedCaptionFile,
+            videoPlayerOptions: videoPlayerOptions,
+            httpHeaders: httpHeaders,
+          );
+        }
+      case VideoPlatform.vimeo:
+        final videoId = dataSource.vimeoVideoId ?? dataSource;
+        final videoHash = hash ?? dataSource.vimeoVideoHash;
+        return PlayVideoFrom.vimeo(
+          videoId,
+          hash: videoHash,
+          formatHint: formatHint,
+          closedCaptionFile: closedCaptionFile,
+          videoPlayerOptions: videoPlayerOptions,
+          httpHeaders: httpHeaders,
+        );
+      case VideoPlatform.dailymotion:
+        final videoId = dataSource.dailymotionVideoId ?? dataSource;
+        return PlayVideoFrom.dailymotion(
+          videoId,
+          token: token,
+          formatHint: formatHint,
+          closedCaptionFile: closedCaptionFile,
+          videoPlayerOptions: videoPlayerOptions,
+          httpHeaders: httpHeaders,
+        );
+      case VideoPlatform.network:
+      case VideoPlatform.unknown:
+        return PlayVideoFrom.network(
+          dataSource,
+          formatHint: formatHint,
+          closedCaptionFile: closedCaptionFile,
+          videoPlayerOptions: videoPlayerOptions,
+          httpHeaders: httpHeaders,
+        );
+    }
+  }
 
   factory PlayVideoFrom.network(
     String dataSource, {
@@ -39,7 +111,7 @@ class PlayVideoFrom {
     Map<String, String> httpHeaders = const {},
   }) {
     return PlayVideoFrom._(
-      playerType: PodVideoPlayerType.network,
+      playerType: AllVideoPlayerType.network,
       dataSource: dataSource,
       formatHint: formatHint,
       closedCaptionFile: closedCaptionFile,
@@ -55,7 +127,7 @@ class PlayVideoFrom {
     VideoPlayerOptions? videoPlayerOptions,
   }) {
     return PlayVideoFrom._(
-      playerType: PodVideoPlayerType.asset,
+      playerType: AllVideoPlayerType.asset,
       dataSource: dataSource,
       package: package,
       closedCaptionFile: closedCaptionFile,
@@ -72,7 +144,7 @@ class PlayVideoFrom {
   }) {
     return PlayVideoFrom._(
       file: file,
-      playerType: PodVideoPlayerType.file,
+      playerType: AllVideoPlayerType.file,
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
     );
@@ -86,10 +158,12 @@ class PlayVideoFrom {
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
   }) {
+    final videoId = dataSource.vimeoVideoId ?? dataSource;
+    final videoHash = hash ?? dataSource.vimeoVideoHash;
     return PlayVideoFrom._(
-      playerType: PodVideoPlayerType.vimeo,
-      dataSource: dataSource,
-      hash: hash,
+      playerType: AllVideoPlayerType.vimeo,
+      dataSource: videoId,
+      hash: videoHash,
       formatHint: formatHint,
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
@@ -104,9 +178,10 @@ class PlayVideoFrom {
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
   }) {
+    final videoId = dataSource.vimeoVideoId ?? dataSource;
     return PlayVideoFrom._(
-      playerType: PodVideoPlayerType.vimeoPrivateVideos,
-      dataSource: dataSource,
+      playerType: AllVideoPlayerType.vimeoPrivateVideos,
+      dataSource: videoId,
       formatHint: formatHint,
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
@@ -122,10 +197,11 @@ class PlayVideoFrom {
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
   }) {
+    final videoId = dataSource.youtubeVideoId ?? dataSource;
     return PlayVideoFrom._(
       live: live,
-      playerType: PodVideoPlayerType.youtube,
-      dataSource: dataSource,
+      playerType: AllVideoPlayerType.youtube,
+      dataSource: videoId,
       formatHint: formatHint,
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
@@ -133,16 +209,51 @@ class PlayVideoFrom {
     );
   }
 
-  factory PlayVideoFrom.dailymotion(
+  /// Alias for `PlayVideoFrom.youtube` (Direct stream player)
+  factory PlayVideoFrom.youtubePlayer(
     String dataSource, {
+    bool live = false,
     VideoFormat? formatHint,
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
   }) {
+    return PlayVideoFrom.youtube(
+      dataSource,
+      live: live,
+      formatHint: formatHint,
+      closedCaptionFile: closedCaptionFile,
+      videoPlayerOptions: videoPlayerOptions,
+      httpHeaders: httpHeaders,
+    );
+  }
+
+  /// Plays YouTube video using the official YouTube iframe player (WebView)
+  factory PlayVideoFrom.youtubeIframe(
+    String videoIdOrUrl, {
+    YoutubePlayerParams? params,
+  }) {
+    final videoId = videoIdOrUrl.youtubeVideoId ?? videoIdOrUrl;
     return PlayVideoFrom._(
-      playerType: PodVideoPlayerType.dailymotion,
-      dataSource: dataSource,
+      playerType: AllVideoPlayerType.youtubeIframe,
+      dataSource: videoId,
+      youtubeParams: params,
+    );
+  }
+
+  factory PlayVideoFrom.dailymotion(
+    String dataSource, {
+    String? token,
+    VideoFormat? formatHint,
+    Future<ClosedCaptionFile>? closedCaptionFile,
+    VideoPlayerOptions? videoPlayerOptions,
+    Map<String, String> httpHeaders = const {},
+  }) {
+    final videoId = dataSource.dailymotionVideoId ?? dataSource;
+    return PlayVideoFrom._(
+      playerType: AllVideoPlayerType.dailymotion,
+      dataSource: videoId,
+      token: token,
       formatHint: formatHint,
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
@@ -158,7 +269,7 @@ class PlayVideoFrom {
     Map<String, String> httpHeaders = const {},
   }) {
     return PlayVideoFrom._(
-      playerType: PodVideoPlayerType.networkQualityUrls,
+      playerType: AllVideoPlayerType.networkQualityUrls,
       videoQualityUrls: videoUrls,
       formatHint: formatHint,
       closedCaptionFile: closedCaptionFile,

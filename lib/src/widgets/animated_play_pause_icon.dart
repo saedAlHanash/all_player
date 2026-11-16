@@ -1,11 +1,11 @@
-part of 'package:pod_player/src/pod_player.dart';
+part of 'package:all_player/src/all_player.dart';
 
 class _AnimatedPlayPauseIcon extends StatefulWidget {
   final double? size;
-  final String tag;
+  final String? tag;
 
   const _AnimatedPlayPauseIcon({
-    required this.tag,
+    this.tag,
     this.size,
   });
 
@@ -15,75 +15,71 @@ class _AnimatedPlayPauseIcon extends StatefulWidget {
 
 class _AnimatedPlayPauseIconState extends State<_AnimatedPlayPauseIcon>
     with SingleTickerProviderStateMixin {
-
   late final AnimationController _payCtr;
-  late PodGetXVideoController _podCtr;
+
   @override
   void initState() {
-    _podCtr = Get.find<PodGetXVideoController>(tag: widget.tag);
+    super.initState();
     _payCtr = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 450),
     );
-    _podCtr.addListenerId('podVideoState', playPauseListner);
-    if (_podCtr.isvideoPlaying) {
-      if (mounted) _payCtr.forward();
-    }
-    super.initState();
   }
 
-  void playPauseListner() {
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
-      if (_podCtr.podVideoState == PodVideoState.playing) {
-        if (mounted) _payCtr.forward();
-      }
-      if (_podCtr.podVideoState == PodVideoState.paused) {
-        if (mounted) _payCtr.reverse();
-      }
-    });
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = context.read<AllPlayerController>();
+    if (controller.isVideoPlaying) {
+      _payCtr.forward();
+    } else {
+      _payCtr.reverse();
+    }
   }
 
   @override
   void dispose() {
-    // podLog('Play-pause-controller-disposed');
     _payCtr.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GetBuilder<PodGetXVideoController>(
-      tag: widget.tag,
-      id: 'overlay',
-      builder: (podCtr) {
-        return GetBuilder<PodGetXVideoController>(
-          tag: widget.tag,
-          id: 'podVideoState',
-          builder: (f) => MaterialIconButton(
-            toolTipMesg: f.isvideoPlaying
-                ? podCtr.podPlayerLabels.pause ??
-                    'Pause${kIsWeb ? ' (space)' : ''}'
-                : podCtr.podPlayerLabels.play ??
-                    'Play${kIsWeb ? ' (space)' : ''}',
-            onPressed:
-                podCtr.isOverlayVisible ? podCtr.togglePlayPauseVideo : null,
-            child: onStateChange(podCtr),
-          ),
+    final playerCtr = context.read<AllPlayerController>();
+    return BlocConsumer<AllPlayerController, AllPlayerState>(
+      listenWhen: (prev, curr) => prev.playerStatus != curr.playerStatus,
+      listener: (context, state) {
+        if (state.playerStatus == AllPlayerStatus.playing) {
+          _payCtr.forward();
+        } else if (state.playerStatus == AllPlayerStatus.paused) {
+          _payCtr.reverse();
+        }
+      },
+      builder: (context, state) {
+        final isPlaying = playerCtr.isVideoPlaying;
+        final tooltipMsg = isPlaying
+            ? playerCtr.playerLabels.pause ?? 'Pause${kIsWeb ? ' (space)' : ''}'
+            : playerCtr.playerLabels.play ?? 'Play${kIsWeb ? ' (space)' : ''}';
+
+        return MaterialIconButton(
+          toolTipMesg: tooltipMsg,
+          onPressed: state.isOverlayVisible ? playerCtr.togglePlayPause : null,
+          child: onStateChange(state, playerCtr),
         );
       },
     );
   }
 
-  Widget onStateChange(PodGetXVideoController podCtr) {
-    if (kIsWeb) return _playPause(podCtr);
-    if (podCtr.podVideoState == PodVideoState.loading) {
+  Widget onStateChange(AllPlayerState state, AllPlayerController playerCtr) {
+    if (kIsWeb) return _playPause();
+    if (state.playerStatus == AllPlayerStatus.loading) {
       return const SizedBox();
     } else {
-      return _playPause(podCtr);
+      return _playPause();
     }
   }
 
-  Widget _playPause(PodGetXVideoController podCtr) {
+  Widget _playPause() {
     return AnimatedIcon(
       icon: AnimatedIcons.play_pause,
       progress: _payCtr,

@@ -1,4 +1,4 @@
-class PodPlayerConfig {
+class AllPlayerConfig {
   final bool autoPlay;
   final bool isLooping;
   final bool forcedVideoFocus;
@@ -11,7 +11,7 @@ class PodPlayerConfig {
   /// Default value is [1080, 720, 360]
   final List<int> videoQualityPriority;
 
-  const PodPlayerConfig({
+  const AllPlayerConfig({
     this.autoPlay = true,
     this.isLooping = false,
     this.forcedVideoFocus = false,
@@ -19,14 +19,14 @@ class PodPlayerConfig {
     this.videoQualityPriority = const [1080, 720, 360],
   });
 
-  PodPlayerConfig copyWith({
+  AllPlayerConfig copyWith({
     bool? autoPlay,
     bool? isLooping,
     bool? forcedVideoFocus,
     bool? wakelockEnabled,
     List<int>? videoQualityPriority,
   }) {
-    return PodPlayerConfig(
+    return AllPlayerConfig(
       autoPlay: autoPlay ?? this.autoPlay,
       isLooping: isLooping ?? this.isLooping,
       forcedVideoFocus: forcedVideoFocus ?? this.forcedVideoFocus,
