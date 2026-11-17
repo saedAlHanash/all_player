@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:video_partial_cache/video_partial_cache.dart';
 
 import '../utils/logger.dart';
+import 'all_player_cache.dart';
 
 /// Optional on-disk cache for the video **bytes** (progressive MP4 / WebM),
 /// built on `video_partial_cache`. Everything the player downloads is kept in
@@ -30,6 +31,10 @@ class AllPlayerVideoCache {
 
   static bool get isEnabled => _cache?.isInitialized ?? false;
 
+  /// Injects an already initialised cache (tests, custom directories).
+  @visibleForTesting
+  static set debugInstance(VideoPartialCache? cache) => _cache = cache;
+
   static Future<void> init({
     int maxCacheSizeBytes = 500 * 1024 * 1024,
     int chunkSizeBytes = 256 * 1024,
@@ -37,6 +42,14 @@ class AllPlayerVideoCache {
     Map<String, String> upstreamHeaders = const {},
   }) async {
     if (kIsWeb || _cache != null) return;
+
+    // A limit / strategy picked by the user in AllPlayerCacheManager wins.
+    final saved = await AllPlayerCache.videoCacheSettings();
+    maxCacheSizeBytes = saved.maxBytes ?? maxCacheSizeBytes;
+    evictionStrategy = EvictionStrategy.values
+            .where((e) => e.name == saved.strategy)
+            .firstOrNull ??
+        evictionStrategy;
 
     final cache = VideoPartialCache(
       maxCacheSizeBytes: maxCacheSizeBytes,
@@ -57,14 +70,43 @@ class AllPlayerVideoCache {
   ///
   /// Pass a stable [videoId] for signed urls that change on every request;
   /// when omitted the cache derives one from the url.
-  static String? playableUrl(String url, {String? videoId}) {
+  static String? playableUrl(String url, {String? videoId, String? title}) {
     final cache = _cache;
     if (cache == null || !cache.isInitialized || !_isSupported(url)) return null;
-    return cache.getPlayableUrl(url, videoId: videoId);
+    return cache.getPlayableUrl(url, videoId: videoId, title: title);
   }
 
-  /// Whether [url] is an HLS playlist (one cache id covers all its qualities).
+  /// Whether [url] is an HLS playlist.
   static bool isHls(String url) => VideoPartialCache.isHlsUrl(url);
+
+  /// The player caches every quality under `<cacheKey>@<quality>`; this is the
+  /// `cacheKey` part (the key used by [AllPlayerCache] for title/thumbnail).
+  static String baseKeyOf(String videoId) {
+    final at = videoId.lastIndexOf('@');
+    return at <= 0 ? videoId : videoId.substring(0, at);
+  }
+
+  /// The quality part of a cache id (`720` in `dailymotion:x1@720`), if any.
+  static int? qualityOf(String videoId) {
+    final at = videoId.lastIndexOf('@');
+    return at <= 0 ? null : int.tryParse(videoId.substring(at + 1));
+  }
+
+  /// Changes the limit and/or strategy now and remembers them for the next
+  /// [init]. Returns the bytes freed by a smaller limit.
+  static Future<int> updateSettings({int? maxCacheSizeBytes, EvictionStrategy? strategy}) async {
+    final cache = _cache;
+    if (cache == null) return 0;
+    final freed = await cache.updateSettings(
+      maxCacheSizeBytes: maxCacheSizeBytes,
+      strategy: strategy,
+    );
+    await AllPlayerCache.saveVideoCacheSettings(
+      maxBytes: maxCacheSizeBytes,
+      strategy: strategy?.name,
+    );
+    return freed;
+  }
 
   static bool _isSupported(String url) {
     final uri = Uri.tryParse(url);

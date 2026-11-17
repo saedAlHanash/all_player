@@ -119,7 +119,12 @@ class AllPlayerController extends Cubit<AllPlayerState> {
       _prefs = await AllPlayerCache.prefs();
     }
 
-    final thumbnail = _youtubeThumbnail ?? await AllPlayerCache.thumbnail(key);
+    // Given by the app: remembered for the cache manager screen.
+    unawaited(AllPlayerCache.saveTitle(key, playVideoFrom.title));
+    final given = playVideoFrom.thumbnail ?? _youtubeThumbnail;
+    if (given != null) unawaited(AllPlayerCache.saveThumbnail(key, given));
+
+    final thumbnail = given ?? await AllPlayerCache.thumbnail(key);
     if (thumbnail != null && !isClosed) {
       emit(state.copyWith(thumbnailUrl: thumbnail));
     }
@@ -237,7 +242,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
   bool get _canCacheBytes {
     if (!playerConfig.cacheVideo || !AllPlayerVideoCache.isEnabled) return false;
     // Per-video headers cannot be forwarded to the origin through the proxy.
-    if (playVideoFrom.httpHeaders.isNotEmpty) return false;
+    if (_streamHeaders.isNotEmpty) return false;
     switch (playVideoFrom.playerType) {
       case AllPlayerType.network:
       case AllPlayerType.networkQualityUrls:
@@ -250,13 +255,30 @@ class AllPlayerController extends Cubit<AllPlayerState> {
     }
   }
 
-  /// Every progressive quality is a different file, so it needs its own cache
-  /// id. An HLS master playlist already holds all qualities: one id for all.
+  /// Headers sent to the stream itself. For youtube / vimeo / dailymotion the
+  /// `httpHeaders` are meant for the platform API (e.g. a Vimeo token), the CDN
+  /// stream does not need them, so they must not disable the byte cache.
+  Map<String, String> get _streamHeaders {
+    switch (playVideoFrom.playerType) {
+      case AllPlayerType.youtube:
+      case AllPlayerType.vimeo:
+      case AllPlayerType.dailymotion:
+        return const {};
+      default:
+        return playVideoFrom.httpHeaders;
+    }
+  }
+
+  /// Every quality is a different file / media playlist, so it needs its own
+  /// cache id (HLS variants would otherwise overwrite each other's segments).
   String? _videoCacheId(String url, int? quality) {
-    if (playVideoFrom.playerType == AllPlayerType.network) return playVideoFrom.cacheId;
+    // A network url without cacheId: the cache derives an id from the url.
+    if (playVideoFrom.playerType == AllPlayerType.network && playVideoFrom.cacheId == null) {
+      return null;
+    }
     final key = playVideoFrom.cacheKey;
     if (key == null) return null;
-    return quality == null || AllPlayerVideoCache.isHls(url) ? key : '$key@$quality';
+    return quality == null ? key : '$key@$quality';
   }
 
   VideoPlayerController _createNetworkController(
@@ -267,7 +289,11 @@ class AllPlayerController extends Cubit<AllPlayerState> {
     var playUrl = url;
     _proxied = false;
     if (useCache && _canCacheBytes) {
-      final proxied = AllPlayerVideoCache.playableUrl(url, videoId: _videoCacheId(url, quality));
+      final proxied = AllPlayerVideoCache.playableUrl(
+        url,
+        videoId: _videoCacheId(url, quality),
+        title: playVideoFrom.title,
+      );
       if (proxied != null) {
         playUrl = proxied;
         _proxied = true;
@@ -279,7 +305,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
       closedCaptionFile: playVideoFrom.closedCaptionFile,
       formatHint: playVideoFrom.formatHint,
       videoPlayerOptions: playVideoFrom.videoPlayerOptions,
-      httpHeaders: playVideoFrom.httpHeaders,
+      httpHeaders: _streamHeaders,
     );
   }
 

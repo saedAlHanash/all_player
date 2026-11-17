@@ -116,6 +116,37 @@ class AllPlayerCache {
 
   //endregion
 
+  //region Title
+  static Future<String?> title(String key) async {
+    return (await _read(key))?['title'] as String?;
+  }
+
+  static Future<void> saveTitle(String key, String? title) {
+    if (title == null || title.isEmpty) return Future.value();
+    return _update(key, (map) => map['title'] = title);
+  }
+
+  //endregion
+
+  //region Video cache settings
+  static const _videoCacheKey = '__video_cache';
+
+  /// Limit / strategy chosen by the user in [AllPlayerCacheManager];
+  /// applied by `AllPlayerVideoCache.init` on the next start.
+  static Future<({int? maxBytes, String? strategy})> videoCacheSettings() async {
+    final map = await _read(_videoCacheKey);
+    return (maxBytes: map?['max'] as int?, strategy: map?['strategy'] as String?);
+  }
+
+  static Future<void> saveVideoCacheSettings({int? maxBytes, String? strategy}) {
+    return _update(_videoCacheKey, (map) {
+      if (maxBytes != null) map['max'] = maxBytes;
+      if (strategy != null) map['strategy'] = strategy;
+    });
+  }
+
+  //endregion
+
   //region Resume position
   /// Returns the saved position, or `null` when there is nothing worth
   /// resuming (never played / finished).

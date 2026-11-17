@@ -21,6 +21,13 @@ class PlayVideoFrom {
   /// (e.g. signed network urls that change on every request).
   final String? cacheId;
 
+  /// Display name, shown by [AllPlayerCacheManager] for this video.
+  final String? title;
+
+  /// Thumbnail url shown while loading and in [AllPlayerCacheManager].
+  /// Vimeo / Dailymotion / YouTube thumbnails are found automatically.
+  final String? thumbnail;
+
   /// Key under which metadata (stream urls, thumbnail, resume position) is
   /// cached, or `null` when this source cannot be cached.
   String? get cacheKey {
@@ -49,6 +56,8 @@ class PlayVideoFrom {
   const PlayVideoFrom._({
     required this.playerType,
     this.cacheId,
+    this.title,
+    this.thumbnail,
     this.live = false,
     this.dataSource,
     this.token,
@@ -81,6 +90,8 @@ class PlayVideoFrom {
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
+    String? title,
+    String? thumbnail,
   }) {
     final platform = dataSource.detectVideoPlatform;
     switch (platform) {
@@ -90,6 +101,8 @@ class PlayVideoFrom {
           return PlayVideoFrom.youtubeIframe(
             videoId,
             params: youtubeParams,
+            title: title,
+            thumbnail: thumbnail,
           );
         } else {
           return PlayVideoFrom.youtube(
@@ -99,6 +112,8 @@ class PlayVideoFrom {
             closedCaptionFile: closedCaptionFile,
             videoPlayerOptions: videoPlayerOptions,
             httpHeaders: httpHeaders,
+            title: title,
+            thumbnail: thumbnail,
           );
         }
       case VideoPlatform.vimeo:
@@ -111,6 +126,8 @@ class PlayVideoFrom {
           closedCaptionFile: closedCaptionFile,
           videoPlayerOptions: videoPlayerOptions,
           httpHeaders: httpHeaders,
+          title: title,
+          thumbnail: thumbnail,
         );
       case VideoPlatform.dailymotion:
         final videoId = dataSource.dailymotionVideoId ?? dataSource;
@@ -121,6 +138,8 @@ class PlayVideoFrom {
           closedCaptionFile: closedCaptionFile,
           videoPlayerOptions: videoPlayerOptions,
           httpHeaders: httpHeaders,
+          title: title,
+          thumbnail: thumbnail,
         );
       case VideoPlatform.network:
       case VideoPlatform.unknown:
@@ -131,6 +150,8 @@ class PlayVideoFrom {
           closedCaptionFile: closedCaptionFile,
           videoPlayerOptions: videoPlayerOptions,
           httpHeaders: httpHeaders,
+          title: title,
+          thumbnail: thumbnail,
         );
     }
   }
@@ -142,6 +163,8 @@ class PlayVideoFrom {
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
+    String? title,
+    String? thumbnail,
   }) {
     return PlayVideoFrom._(
       playerType: AllPlayerType.network,
@@ -151,6 +174,8 @@ class PlayVideoFrom {
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
       httpHeaders: httpHeaders,
+      title: title,
+      thumbnail: thumbnail,
     );
   }
 
@@ -191,6 +216,8 @@ class PlayVideoFrom {
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
+    String? title,
+    String? thumbnail,
   }) {
     final videoId = dataSource.vimeoVideoId ?? dataSource;
     final videoHash = hash ?? dataSource.vimeoVideoHash;
@@ -202,6 +229,8 @@ class PlayVideoFrom {
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
       httpHeaders: httpHeaders,
+      title: title,
+      thumbnail: thumbnail,
     );
   }
 
@@ -211,6 +240,8 @@ class PlayVideoFrom {
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
+    String? title,
+    String? thumbnail,
   }) {
     final videoId = dataSource.vimeoVideoId ?? dataSource;
     return PlayVideoFrom._(
@@ -220,6 +251,8 @@ class PlayVideoFrom {
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
       httpHeaders: httpHeaders,
+      title: title,
+      thumbnail: thumbnail,
     );
   }
 
@@ -230,6 +263,8 @@ class PlayVideoFrom {
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
+    String? title,
+    String? thumbnail,
   }) {
     final videoId = dataSource.youtubeVideoId ?? dataSource;
     return PlayVideoFrom._(
@@ -240,6 +275,8 @@ class PlayVideoFrom {
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
       httpHeaders: httpHeaders,
+      title: title,
+      thumbnail: thumbnail,
     );
   }
 
@@ -251,6 +288,8 @@ class PlayVideoFrom {
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
+    String? title,
+    String? thumbnail,
   }) {
     return PlayVideoFrom.youtube(
       dataSource,
@@ -259,6 +298,8 @@ class PlayVideoFrom {
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
       httpHeaders: httpHeaders,
+      title: title,
+      thumbnail: thumbnail,
     );
   }
 
@@ -266,12 +307,16 @@ class PlayVideoFrom {
   factory PlayVideoFrom.youtubeIframe(
     String videoIdOrUrl, {
     YoutubePlayerParams? params,
+    String? title,
+    String? thumbnail,
   }) {
     final videoId = videoIdOrUrl.youtubeVideoId ?? videoIdOrUrl;
     return PlayVideoFrom._(
       playerType: AllPlayerType.youtubeIframe,
       dataSource: videoId,
       youtubeParams: params,
+      title: title,
+      thumbnail: thumbnail,
     );
   }
 
@@ -282,6 +327,8 @@ class PlayVideoFrom {
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
+    String? title,
+    String? thumbnail,
   }) {
     final videoId = dataSource.dailymotionVideoId ?? dataSource;
     return PlayVideoFrom._(
@@ -292,6 +339,8 @@ class PlayVideoFrom {
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
       httpHeaders: httpHeaders,
+      title: title,
+      thumbnail: thumbnail,
     );
   }
 
@@ -302,6 +351,8 @@ class PlayVideoFrom {
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
+    String? title,
+    String? thumbnail,
   }) {
     return PlayVideoFrom._(
       playerType: AllPlayerType.networkQualityUrls,
@@ -311,6 +362,8 @@ class PlayVideoFrom {
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
       httpHeaders: httpHeaders,
+      title: title,
+      thumbnail: thumbnail,
     );
   }
 }

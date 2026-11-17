@@ -7,10 +7,21 @@ export 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 export 'src/all_player.dart';
 export 'package:video_partial_cache/video_partial_cache.dart'
-    show CacheStats, EvictionStrategy, VideoPartialCache;
+    show
+        CacheStats,
+        CachedSpan,
+        EvictionStrategy,
+        VideoCacheProgress,
+        VideoCacheStats,
+        VideoPartialCache;
 
 export 'src/cache/all_player_cache.dart';
 export 'src/cache/all_player_video_cache.dart';
+export 'src/cache_manager/all_player_cache_manager.dart'
+    show AllPlayerCacheManager, AllPlayerCacheManagerPage;
+export 'src/cache_manager/cache_manager_cubit.dart';
+export 'src/cache_manager/cache_manager_labels.dart';
+export 'src/cache_manager/cache_timeline_bar.dart';
 export 'src/controllers/all_player_controller.dart';
 export 'src/controllers/all_player_state.dart';
 export 'src/models/all_player_config.dart';

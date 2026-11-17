@@ -11,6 +11,16 @@
 - Vimeo: `progressive` MP4 files are used when available (real url per quality, byte-range cacheable);
   otherwise the HLS master playlist is exposed as a single entry (it was repeated for every quality before).
   Falls back to the direct url if the local proxy fails. Disable per video with `AllPlayerConfig.cacheVideo`.
+- Cache manager UI: `AllPlayerCacheManagerPage.open(context)` (or embed `AllPlayerCacheManager`):
+  used / free / limit, cache limit and eviction strategy (remembered across starts), clear all /
+  clear old, and every cached video with thumbnail, title, size, cached % and a `CacheTimelineBar`
+  showing where it is cached (per quality; exact for HLS). Pin or delete a video or one quality.
+  Uses only the app's `Theme`; texts via `AllPlayerCacheLabels` (`.arabic()` included).
+  `AllPlayerCacheCubit` drives it and can back a custom UI.
+- `PlayVideoFrom.*` take `title` and `thumbnail` (shown in the cache manager and while loading).
+- `httpHeaders` on youtube / vimeo / dailymotion are used for the platform API only: they no
+  longer disable the video cache and are not sent to the stream CDN.
+- Each quality is cached under its own id (`<cacheKey>@<quality>`), HLS variants included.
 - Minimum Dart SDK is now 3.12.2 (required by `video_partial_cache`).
 - New `AllPlayerConfig.cacheEnabled` and `cacheId` on `PlayVideoFrom.network` / `networkQualityUrls` / `auto`.
 - `AllPlayerState.thumbnailUrl` added.
