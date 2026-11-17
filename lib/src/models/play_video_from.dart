@@ -17,8 +17,38 @@ class PlayVideoFrom {
   final bool live;
   final YoutubePlayerParams? youtubeParams;
 
+  /// Stable id used as the cache key for sources that have no natural id
+  /// (e.g. signed network urls that change on every request).
+  final String? cacheId;
+
+  /// Key under which metadata (stream urls, thumbnail, resume position) is
+  /// cached, or `null` when this source cannot be cached.
+  String? get cacheKey {
+    final id = cacheId ?? dataSource;
+    if (id == null || id.isEmpty) return null;
+    switch (playerType) {
+      case AllPlayerType.youtube:
+      case AllPlayerType.youtubeIframe:
+        return 'youtube:$id';
+      case AllPlayerType.vimeo:
+      case AllPlayerType.vimeoPrivateVideos:
+        return 'vimeo:$id';
+      case AllPlayerType.dailymotion:
+        return 'dailymotion:$id';
+      case AllPlayerType.network:
+        return 'url:$id';
+      case AllPlayerType.asset:
+        return 'asset:$id';
+      case AllPlayerType.networkQualityUrls:
+        return cacheId == null ? null : 'urls:$cacheId';
+      case AllPlayerType.file:
+        return file == null ? null : 'file:${file!.path}';
+    }
+  }
+
   const PlayVideoFrom._({
     required this.playerType,
+    this.cacheId,
     this.live = false,
     this.dataSource,
     this.token,
@@ -46,6 +76,7 @@ class PlayVideoFrom {
     String? hash,
     String? token,
     String? package,
+    String? cacheId,
     VideoFormat? formatHint,
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
@@ -95,6 +126,7 @@ class PlayVideoFrom {
       case VideoPlatform.unknown:
         return PlayVideoFrom.network(
           dataSource,
+          cacheId: cacheId,
           formatHint: formatHint,
           closedCaptionFile: closedCaptionFile,
           videoPlayerOptions: videoPlayerOptions,
@@ -105,14 +137,16 @@ class PlayVideoFrom {
 
   factory PlayVideoFrom.network(
     String dataSource, {
+    String? cacheId,
     VideoFormat? formatHint,
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
   }) {
     return PlayVideoFrom._(
-      playerType: AllVideoPlayerType.network,
+      playerType: AllPlayerType.network,
       dataSource: dataSource,
+      cacheId: cacheId,
       formatHint: formatHint,
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
@@ -127,7 +161,7 @@ class PlayVideoFrom {
     VideoPlayerOptions? videoPlayerOptions,
   }) {
     return PlayVideoFrom._(
-      playerType: AllVideoPlayerType.asset,
+      playerType: AllPlayerType.asset,
       dataSource: dataSource,
       package: package,
       closedCaptionFile: closedCaptionFile,
@@ -144,7 +178,7 @@ class PlayVideoFrom {
   }) {
     return PlayVideoFrom._(
       file: file,
-      playerType: AllVideoPlayerType.file,
+      playerType: AllPlayerType.file,
       closedCaptionFile: closedCaptionFile,
       videoPlayerOptions: videoPlayerOptions,
     );
@@ -161,7 +195,7 @@ class PlayVideoFrom {
     final videoId = dataSource.vimeoVideoId ?? dataSource;
     final videoHash = hash ?? dataSource.vimeoVideoHash;
     return PlayVideoFrom._(
-      playerType: AllVideoPlayerType.vimeo,
+      playerType: AllPlayerType.vimeo,
       dataSource: videoId,
       hash: videoHash,
       formatHint: formatHint,
@@ -180,7 +214,7 @@ class PlayVideoFrom {
   }) {
     final videoId = dataSource.vimeoVideoId ?? dataSource;
     return PlayVideoFrom._(
-      playerType: AllVideoPlayerType.vimeoPrivateVideos,
+      playerType: AllPlayerType.vimeoPrivateVideos,
       dataSource: videoId,
       formatHint: formatHint,
       closedCaptionFile: closedCaptionFile,
@@ -200,7 +234,7 @@ class PlayVideoFrom {
     final videoId = dataSource.youtubeVideoId ?? dataSource;
     return PlayVideoFrom._(
       live: live,
-      playerType: AllVideoPlayerType.youtube,
+      playerType: AllPlayerType.youtube,
       dataSource: videoId,
       formatHint: formatHint,
       closedCaptionFile: closedCaptionFile,
@@ -235,7 +269,7 @@ class PlayVideoFrom {
   }) {
     final videoId = videoIdOrUrl.youtubeVideoId ?? videoIdOrUrl;
     return PlayVideoFrom._(
-      playerType: AllVideoPlayerType.youtubeIframe,
+      playerType: AllPlayerType.youtubeIframe,
       dataSource: videoId,
       youtubeParams: params,
     );
@@ -251,7 +285,7 @@ class PlayVideoFrom {
   }) {
     final videoId = dataSource.dailymotionVideoId ?? dataSource;
     return PlayVideoFrom._(
-      playerType: AllVideoPlayerType.dailymotion,
+      playerType: AllPlayerType.dailymotion,
       dataSource: videoId,
       token: token,
       formatHint: formatHint,
@@ -263,13 +297,15 @@ class PlayVideoFrom {
 
   factory PlayVideoFrom.networkQualityUrls({
     required List<VideoQalityUrls> videoUrls,
+    String? cacheId,
     VideoFormat? formatHint,
     Future<ClosedCaptionFile>? closedCaptionFile,
     VideoPlayerOptions? videoPlayerOptions,
     Map<String, String> httpHeaders = const {},
   }) {
     return PlayVideoFrom._(
-      playerType: AllVideoPlayerType.networkQualityUrls,
+      playerType: AllPlayerType.networkQualityUrls,
+      cacheId: cacheId,
       videoQualityUrls: videoUrls,
       formatHint: formatHint,
       closedCaptionFile: closedCaptionFile,

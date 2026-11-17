@@ -238,10 +238,5 @@ https://vod3.cf.dmcdn.net/video/fmp4/720/manifest.m3u8#cell=cf3
       expect(controller.state.leftDoubleTapDuration, 10);
       await controller.close();
     });
-
-    test('supports aliases and enums', () {
-      expect(AllVideoState.values, AllPlayerStatus.values);
-      expect(AllVideoPlayerType.values, AllPlayerType.values);
-    });
   });
 }

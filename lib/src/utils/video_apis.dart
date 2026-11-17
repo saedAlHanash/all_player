@@ -5,7 +5,6 @@ import 'package:all_player/src/utils/dailymotion_response.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/http.dart';
-import 'package:m_cubit/caching_service/caching_service.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import '../models/vimeo_models.dart';
@@ -28,13 +27,16 @@ class VideoApis {
 
   static Future<List<VideoQalityUrls>?> getVimeoVideoQualityUrls(
     String videoId,
-    String? hash,
-  ) async {
+    String? hash, {
+    void Function(String thumbnailUrl)? onThumbnail,
+  }) async {
     final cleanId = videoId.vimeoVideoId ?? videoId;
     final cleanHash = hash ?? videoId.vimeoVideoHash;
     try {
       final response = await _makeRequestHash(cleanId, cleanHash);
       final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final thumbnail = json.vimeoThumbnail;
+      if (thumbnail != null) onThumbnail?.call(thumbnail);
       return json.parseVimeoStreams();
     } catch (error) {
       _handleApiError('Vimeo', error);
@@ -123,8 +125,9 @@ class VideoApis {
   }
 
   static Future<List<VideoQalityUrls>?> getDailymotionVideoQualityM3U8Urls(
-    String vId,
-  ) async {
+    String vId, {
+    void Function(String thumbnailUrl)? onThumbnail,
+  }) async {
     final cleanId = vId.dailymotionVideoId ?? vId;
     try {
       final response = await http.get(
@@ -135,9 +138,8 @@ class VideoApis {
         },
       );
       final model = DailymotionResponse.fromJson(jsonDecode(response.body));
-      try {
-        CachingService.addInBucket(key: cleanId, value: model.thumbnails['480'] ?? '');
-      } catch (_) {}
+      final thumbnail = model.thumbnails['480'] ?? model.thumbnails.values.firstOrNull;
+      if (thumbnail != null) onThumbnail?.call(thumbnail);
 
       final autoList = model.qualities?.auto;
       final firstAutoUrl = autoList?.isNotEmpty == true ? autoList!.first.url : null;
@@ -225,11 +227,32 @@ extension HlsMasterPlaylistExtension on String {
 
 /// Extensions for parsing Vimeo API responses.
 extension VimeoResponseExtension on Map<String, dynamic> {
+  /// Best available thumbnail of a public Vimeo config response.
+  String? get vimeoThumbnail {
+    final thumbs = (this['video'] as Map?)?['thumbs'] as Map?;
+    if (thumbs == null) return null;
+    return (thumbs['640'] ?? thumbs['960'] ?? thumbs['base'])?.toString();
+  }
+
   /// Parses public Vimeo video stream configuration.
   List<VideoQalityUrls> parseVimeoStreams() {
     final request = this['request'] as Map<String, dynamic>?;
     final files = request?['files'] as Map<String, dynamic>?;
     if (files == null) return [];
+
+    // 1. Progressive MP4 files (when the owner allows them): a real url per quality.
+    final progressive = <VideoQalityUrls>[];
+    for (final item in (files['progressive'] as List<dynamic>?) ?? const []) {
+      final quality = int.tryParse('${item['quality']}'.split('p').first) ?? 0;
+      final url = item['url'] as String?;
+      if (quality > 0 && url != null && url.isNotEmpty) {
+        progressive.add(VideoQalityUrls(quality: quality, url: url));
+      }
+    }
+    if (progressive.isNotEmpty) return progressive;
+
+    // 2. HLS: the master playlist already contains every quality (the player
+    // switches adaptively), so it is exposed as a single entry.
 
     final dashData = files['dash'] as Map<String, dynamic>?;
     final hlsData = files['hls'] as Map<String, dynamic>?;
@@ -238,19 +261,16 @@ extension VimeoResponseExtension on Map<String, dynamic> {
     final cdnVideoUrl = (cdns?[defaultCDN]?['url'] as String?) ?? '';
     final rawStreamUrls = (dashData?['streams'] as List<dynamic>?) ?? [];
 
-    final List<VideoQalityUrls> vimeoQualityUrls = [];
-    for (final item in rawStreamUrls) {
-      final qualityStr = (item['quality'] as String?)?.split('p').first ?? '0';
-      final quality = int.tryParse(qualityStr) ?? 0;
-      if (quality > 0) {
-        vimeoQualityUrls.add(VideoQalityUrls(quality: quality, url: cdnVideoUrl));
-      }
-    }
+    if (cdnVideoUrl.isEmpty) return [];
 
-    if (vimeoQualityUrls.isEmpty && cdnVideoUrl.isNotEmpty) {
-      vimeoQualityUrls.add(VideoQalityUrls(quality: 720, url: cdnVideoUrl));
+    // Label the entry with the best quality on offer (never below 360, the
+    // lowest quality the controller keeps).
+    var best = 0;
+    for (final item in rawStreamUrls) {
+      final quality = int.tryParse(((item['quality'] as String?) ?? '').split('p').first) ?? 0;
+      if (quality > best) best = quality;
     }
-    return vimeoQualityUrls;
+    return [VideoQalityUrls(quality: best < 360 ? 720 : best, url: cdnVideoUrl)];
   }
 
   /// Parses private Vimeo video streams.

@@ -112,7 +112,7 @@ class _AllPlayerState extends State<AllPlayer> {
                 aspectRatio: frameAspectRatio,
                 child: isInitialized
                     ? _buildNativePlayer()
-                    : _thumbnailAndLoadingWidget(),
+                    : _thumbnailAndLoadingWidget(state.thumbnailUrl),
               ),
             ),
           );
@@ -184,8 +184,18 @@ class _AllPlayerState extends State<AllPlayer> {
         );
   }
 
-  Widget _thumbnailAndLoadingWidget() {
-    if (widget.videoThumbnail == null) {
+  /// Shows [AllPlayer.videoThumbnail] if given, otherwise the thumbnail the
+  /// controller resolved (from cache or the platform API) behind the loader.
+  Widget _thumbnailAndLoadingWidget(String? cachedThumbnailUrl) {
+    final thumbnail = widget.videoThumbnail ??
+        (cachedThumbnailUrl == null
+            ? null
+            : DecorationImage(
+                image: NetworkImage(cachedThumbnailUrl),
+                fit: BoxFit.cover,
+              ));
+
+    if (thumbnail == null) {
       return _buildLoading();
     }
 
@@ -198,7 +208,7 @@ class _AllPlayerState extends State<AllPlayer> {
         tween: Tween<double>(begin: 0.2, end: 0.7),
         duration: const Duration(milliseconds: 400),
         child: DecoratedBox(
-          decoration: BoxDecoration(image: widget.videoThumbnail),
+          decoration: BoxDecoration(image: thumbnail),
           child: Center(
             child: _buildLoading(),
           ),
@@ -207,5 +217,3 @@ class _AllPlayerState extends State<AllPlayer> {
     );
   }
 }
-
-typedef AllVideoPlayer = AllPlayer;

@@ -19,9 +19,7 @@ class AllPlayerState {
   final bool isRightDbTapIconVisible;
   final String? errorMessage;
   final String? playingVideoUrl;
-
-  // Backward compatibility getter
-  AllPlayerStatus get videoState => playerStatus;
+  final String? thumbnailUrl;
 
   const AllPlayerState({
     this.playerStatus = AllPlayerStatus.loading,
@@ -41,11 +39,11 @@ class AllPlayerState {
     this.isRightDbTapIconVisible = false,
     this.errorMessage,
     this.playingVideoUrl,
+    this.thumbnailUrl,
   });
 
   AllPlayerState copyWith({
     AllPlayerStatus? playerStatus,
-    AllPlayerStatus? videoState,
     Duration? videoPosition,
     Duration? videoDuration,
     bool? isFullScreen,
@@ -62,9 +60,10 @@ class AllPlayerState {
     bool? isRightDbTapIconVisible,
     String? errorMessage,
     String? playingVideoUrl,
+    String? thumbnailUrl,
   }) {
     return AllPlayerState(
-      playerStatus: playerStatus ?? videoState ?? this.playerStatus,
+      playerStatus: playerStatus ?? this.playerStatus,
       videoPosition: videoPosition ?? this.videoPosition,
       videoDuration: videoDuration ?? this.videoDuration,
       isFullScreen: isFullScreen ?? this.isFullScreen,
@@ -81,6 +80,7 @@ class AllPlayerState {
       isRightDbTapIconVisible: isRightDbTapIconVisible ?? this.isRightDbTapIconVisible,
       errorMessage: errorMessage ?? this.errorMessage,
       playingVideoUrl: playingVideoUrl ?? this.playingVideoUrl,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
     );
   }
 }

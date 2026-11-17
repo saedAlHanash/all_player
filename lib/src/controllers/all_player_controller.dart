@@ -10,6 +10,8 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 import '../all_player.dart';
+import '../cache/all_player_cache.dart';
+import '../cache/all_player_video_cache.dart';
 import '../models/all_player_config.dart';
 import '../models/all_player_labels.dart';
 import '../models/all_progress_bar_config.dart';
@@ -32,6 +34,10 @@ class AllPlayerController extends Cubit<AllPlayerState> {
   Timer? _leftDoubleTapTimer;
   Timer? _rightDoubleTapTimer;
   Timer? _hoverOverlayTimer;
+
+  AllPlayerPrefs _prefs = const AllPlayerPrefs();
+  DateTime _lastPositionSave = DateTime.fromMillisecondsSinceEpoch(0);
+  static const _positionSaveInterval = Duration(seconds: 5);
 
   int doubleTapForwardSeconds = 10;
   VoidCallback? onVideoQualityChanged;
@@ -79,11 +85,13 @@ class AllPlayerController extends Cubit<AllPlayerState> {
   bool get isMute => state.isMute;
 
   AllPlayerStatus get playerStatus => state.playerStatus;
-  AllPlayerStatus get videoState => state.playerStatus;
 
   VideoPlayerValue? get videoPlayerValue => videoCtr?.value;
 
   AllPlayerType get videoPlayerType => playVideoFrom.playerType;
+
+  /// Cache key of the current video, or `null` when caching is off / unsupported.
+  String? get _cacheKey => playerConfig.cacheEnabled ? playVideoFrom.cacheKey : null;
 
   Duration get totalVideoLength => state.videoDuration;
 
@@ -93,11 +101,42 @@ class AllPlayerController extends Cubit<AllPlayerState> {
 
   Future<void> initialise() async {
     emit(state.copyWith(playerStatus: AllPlayerStatus.loading));
+    await _loadCachedExtras();
     if (isIframe) {
       await _initYoutubeIframe();
     } else {
       await _initVideoPlayer();
     }
+  }
+
+  /// Loads what is cached for this video so the UI can react immediately:
+  /// the thumbnail (shown while loading) and the user's preferences.
+  Future<void> _loadCachedExtras() async {
+    final key = _cacheKey;
+    if (key == null) return;
+
+    if (playerConfig.rememberPreferences) {
+      _prefs = await AllPlayerCache.prefs();
+    }
+
+    final thumbnail = _youtubeThumbnail ?? await AllPlayerCache.thumbnail(key);
+    if (thumbnail != null && !isClosed) {
+      emit(state.copyWith(thumbnailUrl: thumbnail));
+    }
+  }
+
+  /// YouTube thumbnails are deterministic, no request or cache needed.
+  String? get _youtubeThumbnail {
+    final type = playVideoFrom.playerType;
+    if (type != AllPlayerType.youtube && type != AllPlayerType.youtubeIframe) return null;
+    final id = playVideoFrom.dataSource;
+    return id == null ? null : 'https://img.youtube.com/vi/$id/hqdefault.jpg';
+  }
+
+  void _onThumbnail(String url) {
+    final key = _cacheKey;
+    if (key != null) unawaited(AllPlayerCache.saveThumbnail(key, url));
+    if (!isClosed) emit(state.copyWith(thumbnailUrl: url));
   }
 
   Future<void> _initYoutubeIframe() async {
@@ -134,6 +173,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
   }
 
   Future<void> _initVideoPlayer() async {
+    _proxied = false;
     try {
       final url = await _resolveVideoUrl();
       switch (playVideoFrom.playerType) {
@@ -143,13 +183,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
         case AllPlayerType.vimeo:
         case AllPlayerType.vimeoPrivateVideos:
         case AllPlayerType.dailymotion:
-          videoCtr = VideoPlayerController.networkUrl(
-            Uri.parse(url),
-            closedCaptionFile: playVideoFrom.closedCaptionFile,
-            formatHint: playVideoFrom.formatHint,
-            videoPlayerOptions: playVideoFrom.videoPlayerOptions,
-            httpHeaders: playVideoFrom.httpHeaders,
-          );
+          videoCtr = _createNetworkController(url, quality: state.currentQuality);
         case AllPlayerType.asset:
           videoCtr = VideoPlayerController.asset(
             playVideoFrom.dataSource!,
@@ -168,12 +202,14 @@ class AllPlayerController extends Cubit<AllPlayerState> {
           return;
       }
 
-      await videoCtr!.initialize();
+      await _initializeWithFallback(url, quality: state.currentQuality);
       videoCtr!.addListener(_videoListener);
 
       if (playerConfig.isLooping) {
         await videoCtr!.setLooping(true);
       }
+
+      await _restoreFromCache();
 
       if (playerConfig.autoPlay) {
         await play();
@@ -194,6 +230,113 @@ class AllPlayerController extends Cubit<AllPlayerState> {
     }
   }
 
+  /// True while the current controller plays through the local byte cache.
+  bool _proxied = false;
+
+  /// Whether the bytes of this source may go through [AllPlayerVideoCache].
+  bool get _canCacheBytes {
+    if (!playerConfig.cacheVideo || !AllPlayerVideoCache.isEnabled) return false;
+    // Per-video headers cannot be forwarded to the origin through the proxy.
+    if (playVideoFrom.httpHeaders.isNotEmpty) return false;
+    switch (playVideoFrom.playerType) {
+      case AllPlayerType.network:
+      case AllPlayerType.networkQualityUrls:
+      case AllPlayerType.youtube:
+      case AllPlayerType.vimeo:
+      case AllPlayerType.dailymotion:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /// Every progressive quality is a different file, so it needs its own cache
+  /// id. An HLS master playlist already holds all qualities: one id for all.
+  String? _videoCacheId(String url, int? quality) {
+    if (playVideoFrom.playerType == AllPlayerType.network) return playVideoFrom.cacheId;
+    final key = playVideoFrom.cacheKey;
+    if (key == null) return null;
+    return quality == null || AllPlayerVideoCache.isHls(url) ? key : '$key@$quality';
+  }
+
+  VideoPlayerController _createNetworkController(
+    String url, {
+    int? quality,
+    bool useCache = true,
+  }) {
+    var playUrl = url;
+    _proxied = false;
+    if (useCache && _canCacheBytes) {
+      final proxied = AllPlayerVideoCache.playableUrl(url, videoId: _videoCacheId(url, quality));
+      if (proxied != null) {
+        playUrl = proxied;
+        _proxied = true;
+      }
+    }
+
+    return VideoPlayerController.networkUrl(
+      Uri.parse(playUrl),
+      closedCaptionFile: playVideoFrom.closedCaptionFile,
+      formatHint: playVideoFrom.formatHint,
+      videoPlayerOptions: playVideoFrom.videoPlayerOptions,
+      httpHeaders: playVideoFrom.httpHeaders,
+    );
+  }
+
+  /// Initialises [videoCtr]; if it plays through the local cache proxy and that
+  /// fails (e.g. cleartext to localhost blocked), retries with the direct url.
+  Future<void> _initializeWithFallback(String url, {int? quality}) async {
+    try {
+      await videoCtr!.initialize();
+    } catch (e) {
+      if (!_proxied) rethrow;
+      allPlayerLog('video cache proxy failed, using the direct url: $e');
+      await videoCtr?.dispose();
+      videoCtr = _createNetworkController(url, quality: quality, useCache: false);
+      await videoCtr!.initialize();
+    }
+  }
+
+  /// Applies the saved speed / volume and (optionally) resumes the video.
+  Future<void> _restoreFromCache() async {
+    final key = _cacheKey;
+    if (key == null) return;
+
+    if (playerConfig.rememberPreferences) {
+      final speed = _prefs.speed;
+      if (speed != null) setVideoPlayback(speed, persist: false);
+      final volume = _prefs.volume;
+      if (volume != null) await videoCtr?.setVolume(volume);
+    }
+
+    if (playerConfig.resumePlayback) {
+      final saved = await AllPlayerCache.position(key);
+      final duration = videoCtr?.value.duration ?? Duration.zero;
+      if (saved != null && saved < duration) {
+        await videoCtr?.seekTo(saved);
+      }
+    }
+  }
+
+  /// Returns cached stream urls when they are still valid, otherwise calls
+  /// [fetch] and caches the result.
+  Future<List<VideoQalityUrls>> _cachedStreams(
+    Future<List<VideoQalityUrls>?> Function() fetch,
+  ) async {
+    final key = _cacheKey;
+    if (key != null) {
+      final cached = await AllPlayerCache.streams(key);
+      if (cached != null) {
+        allPlayerLog('stream urls loaded from cache: $key');
+        return cached;
+      }
+    }
+
+    final urls = await fetch() ?? [];
+    if (key != null) unawaited(AllPlayerCache.saveStreams(key, urls));
+    return urls;
+  }
+
   Future<String> _resolveVideoUrl() async {
     switch (playVideoFrom.playerType) {
       case AllPlayerType.network:
@@ -203,37 +346,32 @@ class AllPlayerController extends Cubit<AllPlayerState> {
         return _pickQualityUrl(playVideoFrom.videoQualityUrls ?? []);
       case AllPlayerType.youtube:
         final videoId = playVideoFrom.dataSource?.youtubeVideoId ?? playVideoFrom.dataSource!;
-        final urls = await VideoApis.getYoutubeVideoQualityUrls(
-          videoId,
-          playVideoFrom.live,
+        final urls = await _cachedStreams(
+          () => VideoApis.getYoutubeVideoQualityUrls(videoId, playVideoFrom.live),
         );
-        return _pickQualityUrl(urls ?? []);
+        return _pickQualityUrl(urls);
       case AllPlayerType.vimeo:
         final videoId = playVideoFrom.dataSource?.vimeoVideoId ?? playVideoFrom.dataSource!;
         final hash = playVideoFrom.hash ?? playVideoFrom.dataSource?.vimeoVideoHash;
-        final urls = await VideoApis.getVimeoVideoQualityUrls(
-          videoId,
-          hash,
+        final urls = await _cachedStreams(
+          () => VideoApis.getVimeoVideoQualityUrls(videoId, hash, onThumbnail: _onThumbnail),
         );
-        return _pickQualityUrl(urls ?? []);
+        return _pickQualityUrl(urls);
       case AllPlayerType.vimeoPrivateVideos:
         final videoId = playVideoFrom.dataSource?.vimeoVideoId ?? playVideoFrom.dataSource!;
-        final urls = await VideoApis.getVimeoPrivateVideoQualityUrls(
-          videoId,
-          playVideoFrom.httpHeaders,
+        final urls = await _cachedStreams(
+          () => VideoApis.getVimeoPrivateVideoQualityUrls(videoId, playVideoFrom.httpHeaders),
         );
-        return _pickQualityUrl(urls ?? []);
+        return _pickQualityUrl(urls);
       case AllPlayerType.dailymotion:
         final videoId = playVideoFrom.dataSource?.dailymotionVideoId ?? playVideoFrom.dataSource!;
-        final urls = playVideoFrom.token != null
-            ? await VideoApis.getDailymotionVideoQualityUrls(
-                videoId,
-                playVideoFrom.token!,
-              )
-            : await VideoApis.getDailymotionVideoQualityM3U8Urls(
-                videoId,
-              );
-        return _pickQualityUrl(urls ?? []);
+        final token = playVideoFrom.token;
+        final urls = await _cachedStreams(
+          () => token != null
+              ? VideoApis.getDailymotionVideoQualityUrls(videoId, token)
+              : VideoApis.getDailymotionVideoQualityM3U8Urls(videoId, onThumbnail: _onThumbnail),
+        );
+        return _pickQualityUrl(urls);
       case AllPlayerType.asset:
       case AllPlayerType.file:
       case AllPlayerType.youtubeIframe:
@@ -252,7 +390,11 @@ class AllPlayerController extends Cubit<AllPlayerState> {
 
     final fallback = sorted.first;
     VideoQalityUrls? picked;
-    for (final q in playerConfig.videoQualityPriority) {
+    final priority = [
+      if (playerConfig.rememberPreferences && _prefs.quality != null) _prefs.quality!,
+      ...playerConfig.videoQualityPriority,
+    ];
+    for (final q in priority) {
       picked = sorted.firstWhere((e) => e.quality == q, orElse: () => fallback);
       if (picked != fallback) break;
     }
@@ -282,6 +424,8 @@ class AllPlayerController extends Cubit<AllPlayerState> {
       currentStatus = AllPlayerStatus.paused;
     }
 
+    if (currentStatus == AllPlayerStatus.playing) _savePosition();
+
     emit(state.copyWith(
       playerStatus: currentStatus,
       videoPosition: value.position,
@@ -291,6 +435,27 @@ class AllPlayerController extends Cubit<AllPlayerState> {
       isLooping: value.isLooping,
       errorMessage: value.errorDescription,
     ));
+  }
+
+  /// Persists the position (throttled unless [force]) so the video can resume.
+  void _savePosition({bool force = false}) {
+    final key = _cacheKey;
+    final value = videoCtr?.value;
+    if (key == null || !playerConfig.resumePlayback || value == null || !value.isInitialized) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (!force && now.difference(_lastPositionSave) < _positionSaveInterval) return;
+    _lastPositionSave = now;
+    unawaited(AllPlayerCache.savePosition(key, value.position, value.duration));
+  }
+
+  void _savePrefs(AllPlayerPrefs prefs) {
+    _prefs = prefs;
+    if (_cacheKey != null && playerConfig.rememberPreferences) {
+      unawaited(AllPlayerCache.savePrefs(prefs));
+    }
   }
 
   Future<void> play() async {
@@ -313,6 +478,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
       emit(state.copyWith(playerStatus: AllPlayerStatus.paused));
     } else {
       await videoCtr?.pause();
+      _savePosition(force: true);
       if (playerConfig.wakelockEnabled) {
         unawaited(WakelockPlus.disable().catchError((_) {}));
       }
@@ -354,6 +520,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
       volume: volume,
       isMute: volume <= 0,
     ));
+    _savePrefs(_prefs.copyWith(volume: volume));
   }
 
   Future<void> mute() async => setVolume(0);
@@ -364,7 +531,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
     state.isMute ? await unMute() : await mute();
   }
 
-  void setVideoPlayback(String speed) {
+  void setVideoPlayback(String speed, {bool persist = true}) {
     final double pickedSpeed;
     if (speed == 'Normal' || speed == '1x') {
       pickedSpeed = 1.0;
@@ -377,6 +544,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
       videoCtr?.setPlaybackSpeed(pickedSpeed);
     }
     emit(state.copyWith(playbackSpeed: speed));
+    if (persist) _savePrefs(_prefs.copyWith(speed: speed));
   }
 
   Future<void> setLooping(bool isLooped) async {
@@ -407,13 +575,14 @@ class AllPlayerController extends Cubit<AllPlayerState> {
     videoCtr?.removeListener(_videoListener);
     await videoCtr?.dispose();
 
-    videoCtr = VideoPlayerController.networkUrl(Uri.parse(target.url));
-    await videoCtr?.initialize();
+    videoCtr = _createNetworkController(target.url, quality: target.quality);
+    await _initializeWithFallback(target.url, quality: target.quality);
     videoCtr?.addListener(_videoListener);
     await videoCtr?.seekTo(currentPosition);
     setVideoPlayback(currentSpeed);
     await play();
 
+    _savePrefs(_prefs.copyWith(quality: target.quality));
     onVideoQualityChanged?.call();
   }
 
@@ -653,6 +822,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
     _leftDoubleTapTimer?.cancel();
     _rightDoubleTapTimer?.cancel();
     _hoverOverlayTimer?.cancel();
+    _savePosition(force: true);
     videoCtr?.removeListener(_videoListener);
     videoCtr?.dispose();
     youtubeIframeController?.close();

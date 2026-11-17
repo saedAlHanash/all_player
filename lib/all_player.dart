@@ -6,6 +6,11 @@ export 'package:video_player/video_player.dart';
 export 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 export 'src/all_player.dart';
+export 'package:video_partial_cache/video_partial_cache.dart'
+    show CacheStats, EvictionStrategy, VideoPartialCache;
+
+export 'src/cache/all_player_cache.dart';
+export 'src/cache/all_player_video_cache.dart';
 export 'src/controllers/all_player_controller.dart';
 export 'src/controllers/all_player_state.dart';
 export 'src/models/all_player_config.dart';

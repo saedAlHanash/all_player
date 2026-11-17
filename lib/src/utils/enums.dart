@@ -5,10 +5,6 @@ enum AllPlayerStatus {
   error,
 }
 
-typedef AllVideoState = AllPlayerStatus;
-
-const videoThumpBuketName = 'vimeoImages';
-
 enum AllPlayerType {
   network,
   networkQualityUrls,
@@ -20,8 +16,6 @@ enum AllPlayerType {
   dailymotion,
   vimeoPrivateVideos,
 }
-
-typedef AllVideoPlayerType = AllPlayerType;
 
 enum VideoPlatform {
   youtube,

@@ -1,3 +1,24 @@
+## 2.0.0
+- Added a per-video metadata cache (`AllPlayerCache`) on top of m_cubit's `CachingService`:
+  - stream/quality urls, cached until their signed url expires (YouTube `expire`, otherwise 30 min),
+  - thumbnail url, shown behind the loader (YouTube is derived from the id, Vimeo/Dailymotion are cached),
+  - resume position (`AllPlayerConfig.resumePlayback`),
+  - remembered quality / speed / volume (`AllPlayerConfig.rememberPreferences`).
+- Added optional video-bytes cache `AllPlayerVideoCache` (`video_partial_cache`): call
+  `AllPlayerVideoCache.init()` once. Used for `network`, `networkQualityUrls`, `youtube`, `vimeo`
+  and `dailymotion`, for progressive MP4 and for HLS (`.m3u8` playlists + segments, offline replay);
+  skipped for DASH, asset/file, web, live streams and videos with `httpHeaders`.
+- Vimeo: `progressive` MP4 files are used when available (real url per quality, byte-range cacheable);
+  otherwise the HLS master playlist is exposed as a single entry (it was repeated for every quality before).
+  Falls back to the direct url if the local proxy fails. Disable per video with `AllPlayerConfig.cacheVideo`.
+- Minimum Dart SDK is now 3.12.2 (required by `video_partial_cache`).
+- New `AllPlayerConfig.cacheEnabled` and `cacheId` on `PlayVideoFrom.network` / `networkQualityUrls` / `auto`.
+- `AllPlayerState.thumbnailUrl` added.
+- Fixed: changing quality dropped `httpHeaders`, `formatHint` and captions.
+- Breaking: removed `AllVideoPlayer`, `AllVideoState`, `AllVideoPlayerType` aliases,
+  `AllPlayerState/AllPlayerController.videoState`, `AllPlayerConfig.forcedVideoFocus`
+  and the unused `videoThumpBuketName`.
+
 ## 1.0.0
 - Rebranded to `all_player`.
 - Replaced GetX architecture with clean `Cubit` (`flutter_bloc`) state management.
