@@ -39,6 +39,11 @@ class AllPlayerController extends Cubit<AllPlayerState> {
   DateTime _lastPositionSave = DateTime.fromMillisecondsSinceEpoch(0);
   static const _positionSaveInterval = Duration(seconds: 5);
 
+  // YouTube iframe: last known position / duration, for resume.
+  StreamSubscription<YoutubeVideoState>? _iframeStateSub;
+  Duration? _iframePosition;
+  Duration _iframeDuration = Duration.zero;
+
   int doubleTapForwardSeconds = 10;
   VoidCallback? onVideoQualityChanged;
   Future<void> Function(bool isFullScreen)? onToggleFullScreen;
@@ -148,9 +153,13 @@ class AllPlayerController extends Cubit<AllPlayerState> {
     try {
       final rawSource = playVideoFrom.dataSource ?? '';
       final videoId = rawSource.youtubeVideoId ?? rawSource;
+      final key = _cacheKey;
+      final resumeAt =
+          key != null && playerConfig.resumePlayback ? await AllPlayerCache.position(key) : null;
       youtubeIframeController = YoutubePlayerController.fromVideoId(
         videoId: videoId,
         autoPlay: playerConfig.autoPlay,
+        startSeconds: resumeAt == null ? null : resumeAt.inMilliseconds / 1000,
         params: playVideoFrom.youtubeParams ??
             const YoutubePlayerParams(
               mute: false,
@@ -163,6 +172,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
       if (playerConfig.wakelockEnabled) {
         unawaited(WakelockPlus.enable().catchError((_) {}));
       }
+      _listenIframeProgress();
       emit(state.copyWith(
         playerStatus: AllPlayerStatus.playing,
         playingVideoUrl: rawSource,
@@ -463,18 +473,49 @@ class AllPlayerController extends Cubit<AllPlayerState> {
     ));
   }
 
+  /// Tracks the iframe player's position so it can be saved for resume.
+  void _listenIframeProgress() {
+    final ctr = youtubeIframeController;
+    if (ctr == null || _cacheKey == null || !playerConfig.resumePlayback) return;
+    unawaited(_iframeStateSub?.cancel());
+    var askedDuration = false;
+    _iframeStateSub = ctr.videoStateStream.listen((s) async {
+      if (s.position <= Duration.zero) return;
+      _iframePosition = s.position;
+      if (!askedDuration) {
+        askedDuration = true;
+        try {
+          final seconds = await ctr.duration;
+          if (seconds > 0) _iframeDuration = Duration(milliseconds: (seconds * 1000).round());
+        } catch (_) {}
+      }
+      _savePosition();
+    });
+  }
+
   /// Persists the position (throttled unless [force]) so the video can resume.
   void _savePosition({bool force = false}) {
     final key = _cacheKey;
-    final value = videoCtr?.value;
-    if (key == null || !playerConfig.resumePlayback || value == null || !value.isInitialized) {
-      return;
+    if (key == null || !playerConfig.resumePlayback) return;
+
+    final Duration position;
+    final Duration duration;
+    if (isIframe) {
+      final p = _iframePosition;
+      if (p == null) return;
+      position = p;
+      duration = _iframeDuration;
+    } else {
+      final value = videoCtr?.value;
+      if (value == null || !value.isInitialized) return;
+      position = value.position;
+      duration = value.duration;
     }
 
     final now = DateTime.now();
     if (!force && now.difference(_lastPositionSave) < _positionSaveInterval) return;
     _lastPositionSave = now;
-    unawaited(AllPlayerCache.savePosition(key, value.position, value.duration));
+    unawaited(AllPlayerCache.savePosition(key, position, duration));
   }
 
   void _savePrefs(AllPlayerPrefs prefs) {
@@ -501,6 +542,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
   Future<void> pause() async {
     if (isIframe) {
       youtubeIframeController?.pauseVideo();
+      _savePosition(force: true);
       emit(state.copyWith(playerStatus: AllPlayerStatus.paused));
     } else {
       await videoCtr?.pause();
@@ -821,9 +863,14 @@ class AllPlayerController extends Cubit<AllPlayerState> {
     required PlayVideoFrom playVideoFrom,
     AllPlayerConfig playerConfig = const AllPlayerConfig(),
   }) async {
+    _savePosition(force: true);
     videoCtr?.removeListener(_videoListener);
     await videoCtr?.dispose();
     videoCtr = null;
+    await _iframeStateSub?.cancel();
+    _iframeStateSub = null;
+    _iframePosition = null;
+    _iframeDuration = Duration.zero;
     youtubeIframeController?.close();
     youtubeIframeController = null;
 
@@ -849,6 +896,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
     _rightDoubleTapTimer?.cancel();
     _hoverOverlayTimer?.cancel();
     _savePosition(force: true);
+    unawaited(_iframeStateSub?.cancel());
     videoCtr?.removeListener(_videoListener);
     videoCtr?.dispose();
     youtubeIframeController?.close();
