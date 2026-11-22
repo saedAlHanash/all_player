@@ -560,7 +560,7 @@ class AllPlayerController extends Cubit<AllPlayerState> {
 
   Future<void> seekTo(Duration moment) async {
     if (isIframe) {
-      await youtubeIframeController?.seekTo(seconds: moment.inSeconds.toDouble());
+       youtubeIframeController?.seekTo(seconds: moment.inSeconds.toDouble());
     } else {
       await videoCtr?.seekTo(moment);
     }
@@ -577,9 +577,9 @@ class AllPlayerController extends Cubit<AllPlayerState> {
   Future<void> setVolume(double volume) async {
     if (isIframe) {
       if (volume <= 0) {
-        await youtubeIframeController?.mute();
+         youtubeIframeController?.mute();
       } else {
-        await youtubeIframeController?.unMute();
+         youtubeIframeController?.unMute();
       }
     } else {
       await videoCtr?.setVolume(volume);
